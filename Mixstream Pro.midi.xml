@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
-<MixxxControllerPreset mixxxVersion="" schemaVersion="1">
+<MixxxControllerPreset mixxxVersion="2.0" schemaVersion="1">
     <info>
-        <name>Mixstream Pro NEW</name>
+        <name>Numark Mixstream Pro</name>
     </info>
     <controller id="MixstreamPro">
         <scriptfiles>
-            <file functionprefix="MixstreamPro" filename="Numark-MixstreamPro-scripts.js"/>
+            <file functionprefix="MixstreamPro" filename="Numark-MixstreamPro.scripts.js"/>
         </scriptfiles>
         <controls>
             <control>
