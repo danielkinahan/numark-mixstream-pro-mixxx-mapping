@@ -5,6 +5,8 @@
     </info>
     <controller id="MixstreamPro">
         <scriptfiles>
+            <file filename="lodash.mixxx.js"/>
+            <file filename="midi-components-0.0.js"/>
             <file functionprefix="MixstreamPro" filename="Numark-MixstreamPro.scripts.js"/>
         </scriptfiles>
         <controls>
@@ -622,46 +624,42 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>rate</key>
-                <description>MIDI Learned from 46 messages.</description>
+                <key>MixstreamPro.pitchSlider1.inputMSB</key>
+                <description>Pitch Slider Channel 1 (Coarse)</description>
                 <status>0xB2</status>
                 <midino>0x1F</midino>
                 <options>
-                    <invert/>
-                    <fourteen-bit-msb/>
+                    <script-binding/>
                 </options>
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>rate</key>
-                <description>MIDI Learned from 214 messages.</description>
+                <key>MixstreamPro.pitchSlider2.inputMSB</key>
+                <description>Pitch Slider Channel 2 (Coarse)</description>
                 <status>0xB3</status>
                 <midino>0x1F</midino>
                 <options>
-                    <invert/>
-                    <fourteen-bit-msb/>
+                    <script-binding/>
                 </options>
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>rate</key>
-                <description>MIDI Learned from 46 messages.</description>
+                <key>MixstreamPro.pitchSlider1.inputLSB</key>
+                <description>Pitch Slider Channel 1 (Fine)</description>
                 <status>0xB2</status>
                 <midino>0x4B</midino>
                 <options>
-                    <invert/>
-                    <fourteen-bit-lsb/>
+                    <script-binding/>
                 </options>
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>rate</key>
-                <description>MIDI Learned from 214 messages.</description>
+                <key>MixstreamPro.pitchSlider2.inputLSB</key>
+                <description>Pitch Slider Channel 2 (Fine)</description>
                 <status>0xB3</status>
                 <midino>0x4B</midino>
                 <options>
-                    <invert/>
-                    <fourteen-bit-lsb/>
+                    <script-binding/>
                 </options>
             </control>
             <control>

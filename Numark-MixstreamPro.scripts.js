@@ -3,6 +3,27 @@
 
 var MixstreamPro = {};
 
+// Pitch slider Pot components for 14-bit precision
+MixstreamPro.pitchSlider1 = new components.Pot({
+    midi: [0xB2, 0x1F],
+    group: '[Channel1]',
+    inKey: 'rate',
+    inValueScale: function(value) {
+        // Invert: 0 -> 1, 1 -> 0
+        return 1 - (value / 16384);
+    },
+});
+
+MixstreamPro.pitchSlider2 = new components.Pot({
+    midi: [0xB3, 0x1F],
+    group: '[Channel2]',
+    inKey: 'rate',
+    inValueScale: function(value) {
+        // Invert: 0 -> 1, 1 -> 0
+        return 1 - (value / 16384);
+    },
+});
+
 MixstreamPro.init = function(id, debugging) {
     // Init Callbacks
     // VuMeters
