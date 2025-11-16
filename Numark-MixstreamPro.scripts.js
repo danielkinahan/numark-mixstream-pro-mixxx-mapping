@@ -605,46 +605,34 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     }
 }
 
-// TOGGLE EFFECT Switch : HOLD / ON
-// TOGGLE EFFECT Switch : HOLD / ON
+// Track toggle switch state for each channel (4 = Unit1, 5 = Unit2)
+MixstreamPro.toggleSwitchState = {
+    4: false,  // Channel 4 toggle state
+    5: false   // Channel 5 toggle state
+}
+
 MixstreamPro.effectToggleSwitch = function (channel, control, value, status, group) {
     // Get effect number based on channel (assuming 4 effects controlled by this)
     // Check enabled states from effectStates
     
-    if (channel === 4 && value === 1 && MixstreamPro.effectStates[1].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[1].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect1]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect1]", "enabled", 0);
+    // Determine if toggle is ON (value 1 or 2)
+    var toggleIsOn = (value === 1 || value === 2);
+    MixstreamPro.toggleSwitchState[channel] = toggleIsOn;
+    
+    if (channel === 4) {
+        for (var i = 1; i <= 3; i++) {
+            var effectKey = "[EffectRack1_EffectUnit1_Effect" + i + "]";
+            var shouldEnable = toggleIsOn && MixstreamPro.effectStates[i].toggle ? 1 : 0;
+            engine.setValue(effectKey, "enabled", shouldEnable);
+        }
     }
-
-    if (channel === 5 && value === 1 && MixstreamPro.effectStates[1].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[1].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect1]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect1]", "enabled", 0);
-    }
-
-    if (channel === 4 && value === 1 && MixstreamPro.effectStates[2].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[2].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect2]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect2]", "enabled", 0);
-    }
-
-    if (channel === 5 && value === 1 && MixstreamPro.effectStates[2].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[2].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect2]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect2]", "enabled", 0);
-    }
-
-    if (channel === 4 && value === 1 && MixstreamPro.effectStates[3].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[3].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect3]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit1_Effect3]", "enabled", 0);
-    }
-
-    if (channel === 5 && value === 1 && MixstreamPro.effectStates[3].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[3].toggle) {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect3]", "enabled", 1);
-    } else {
-        engine.setValue("[EffectRack1_EffectUnit2_Effect3]", "enabled", 0);
+    
+    if (channel === 5) {
+        for (var i = 1; i <= 3; i++) {
+            var effectKey = "[EffectRack1_EffectUnit2_Effect" + i + "]";
+            var shouldEnable = toggleIsOn && MixstreamPro.effectStates[i].toggle ? 1 : 0;
+            engine.setValue(effectKey, "enabled", shouldEnable);
+        }
     }
 }
 
@@ -666,7 +654,7 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
     if (value === 127) {
         // If currently disabled -> enable and start blinking
         if (!effectState.toggle) {
-            // // Ensure any previous timer is stopped
+            // Ensure any previous timer is stopped
             if (effectState.blinktimer !== 0) {
                 try { engine.stopTimer(effectState.blinktimer); } catch (e) {}
                 effectState.blinktimer = 0;
@@ -697,5 +685,12 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
             // Ensure LED shows off state
             midi.sendShortMsg(0x94, effectState.midiCC, 0x01);
         }
+        
+        // After toggling the effect button, trigger the toggle switches to re-evaluate
+        // This ensures the effect is applied/removed based on current toggle switch state
+        var channel4Value = MixstreamPro.toggleSwitchState[4] ? 1 : 0;
+        var channel5Value = MixstreamPro.toggleSwitchState[5] ? 1 : 0;
+        MixstreamPro.effectToggleSwitch(4, null, channel4Value, null, null);
+        MixstreamPro.effectToggleSwitch(5, null, channel5Value, null, null);
     }
 }
