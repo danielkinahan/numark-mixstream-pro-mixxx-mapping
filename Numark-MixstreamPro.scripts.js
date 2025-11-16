@@ -30,17 +30,17 @@ MixstreamPro.init = function (id, debugging) {
     engine.makeConnection("[Master]", "VuMeterL", MixstreamPro.vuCallback);
     engine.makeConnection("[Master]", "VuMeterR", MixstreamPro.vuCallback);
     // TrackLoaded
-    engine.makeConnection("[Channel1]", "track_loaded", MixstreamPro.track_loaded1);
-    engine.makeConnection("[Channel2]", "track_loaded", MixstreamPro.track_loaded2);
+    engine.makeConnection("[Channel1]", "track_loaded", MixstreamPro.trackLoadedCallback);
+    engine.makeConnection("[Channel2]", "track_loaded", MixstreamPro.trackLoadedCallback);
     // TrackPlaying
-    engine.makeConnection("[Channel1]", "play_indicator", MixstreamPro.play_indicator1);
-    engine.makeConnection("[Channel2]", "play_indicator", MixstreamPro.play_indicator2);
+    engine.makeConnection("[Channel1]", "play_indicator", MixstreamPro.playIndicatorCallback11);
+    engine.makeConnection("[Channel2]", "play_indicator", MixstreamPro.playIndicatorCallback12);
 
     // Init LEDs
-    LEDs_Init()
+    initLEDs()
 }
 
-function LEDs_Init() {
+function initLEDs() {
     // Turn ON all LEDs
     engine.beginTimer(1000, function () {
         midi.sendShortMsg(0x90, 0x75, 0x7f);
@@ -140,7 +140,7 @@ MixstreamPro.vuCallback = function (value, group, control) {
 MixstreamPro.WIFI = true
 
 // TOGGLE AUX 1 Button
-MixstreamPro.Play_Aux_1 = function (channel, control, value, status, group) {
+MixstreamPro.playAux1 = function (channel, control, value, status, group) {
     if (value === 127) {
         if (MixstreamPro.WIFI == true) {
             engine.setValue("[Auxiliary1]", "master", 1)
@@ -165,26 +165,25 @@ MixstreamPro.Play_Aux_1 = function (channel, control, value, status, group) {
     if (value === 0) { return }
 }
 
-// Init Aux Volume Timer
-MixstreamPro.AUX_volume = 0
+// // Init Aux Volume Timer
+// MixstreamPro.AUX_volume = 0
 
-MixstreamPro.play_indicator1 = function (channel, control, value, status, group) {
+MixstreamPro.playIndicatorCallback1 = function (channel, control, value, status, group) {
     engine.setValue("[Auxiliary1]", "orientation", 2)
 }
 
-MixstreamPro.play_indicator2 = function (channel, control, value, status, group) {
+MixstreamPro.playIndicatorCallback2 = function (channel, control, value, status, group) {
     engine.setValue("[Auxiliary1]", "orientation", 0)
 }
 
 MixstreamPro.jogWheelTicksPerRevolution = 894;
 MixstreamPro.jogSensitivity = 0.05;
-MixstreamPro.previousJogValue1 = 0
-MixstreamPro.previousJogValue2 = 0
 
 MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
-    var deckNumber = script.deckFromGroup(group)
+    var deckNumber = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNumber];
 
-    if ((MixstreamPro.slipenabledToggle1 == true && deckNumber == 1) || (MixstreamPro.slipenabledToggle2 == true && deckNumber == 2)) {
+    if (deckState.slipenabledToggle) {
         if (value === 0x7F) {    // If WheelTouch
             var alpha = 1.0 / 8;
             var beta = alpha / 32;
@@ -195,392 +194,246 @@ MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
     }
 }
 
-// JogWheel Deck1
-MixstreamPro.JogLSB_1 = function (channel, control, value, status, group) {
-    // LSB not used, use on 7 Bits
-    return
-};
-
-MixstreamPro.JogMSB_1 = function (channel, control, value, status, group) {
+// Generic JogWheel MSB handler for both decks
+MixstreamPro.JogMSB = function (channel, control, value, status, group) {
     var MSB = value;
-    var POS = engine.getValue(group, "playposition")
+    var POS = engine.getValue(group, "playposition");
     var deckNumber = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNumber];
 
     switch (true) {
         case POS <= 0:
-            engine.setValue(group, "playposition", 1)
+            engine.setValue(group, "playposition", 1);
             break;
         case POS >= 1:
-            engine.setValue(group, "playposition", 0)
+            engine.setValue(group, "playposition", 0);
             break;
     }
 
     if (engine.isScratching(deckNumber)) {
-        if (MSB >= MixstreamPro.previousJogValue1) {
+        if (MSB >= deckState.previousJogValue) {
             engine.scratchTick(deckNumber, MSB / 2); // Scratch!
-            MixstreamPro.previousJogValue1 = value;
+            deckState.previousJogValue = value;
         }
         else {
             engine.scratchTick(deckNumber, -MSB / 2); // Reverse Scratch!
-            MixstreamPro.previousJogValue1 = value;
+            deckState.previousJogValue = value;
         }
     }
     else // Jog
     {
-        if (MSB >= MixstreamPro.previousJogValue1) {
+        if (MSB >= deckState.previousJogValue) {
             engine.setValue(group, "jog", MSB * MixstreamPro.jogSensitivity);
-            MixstreamPro.previousJogValue1 = value;
+            deckState.previousJogValue = value;
         }
         else {
             engine.setValue(group, "jog", -MSB * MixstreamPro.jogSensitivity);
-            MixstreamPro.previousJogValue1 = value;
+            deckState.previousJogValue = value;
         }
     }
 };
 
-// JogWheel Deck2
-MixstreamPro.JogLSB_2 = function (channel, control, value, status, group) {
+MixstreamPro.JogLSB = function (channel, control, value, status, group) {
     // LSB not used, use on 7 Bits
     return
 };
 
-MixstreamPro.JogMSB_2 = function (channel, control, value, status, group) {
-    var MSB = value;
-    var POS = engine.getValue(group, "playposition")
-    var deckNumber = script.deckFromGroup(group);
-
-    switch (true) {
-        case POS <= 0:
-            engine.setValue(group, "playposition", 1)
-            break;
-        case POS >= 1:
-            engine.setValue(group, "playposition", 0)
-            break;
+// Init Hotcue variables - Deck state containers
+MixstreamPro.deck = {
+    1: {
+        blinktimer: 0,
+        hotcuevalue: 0,
+        LEDblink: true,
+        midiStatus: 0x92,
+        channel: "[Channel1]",
+        auxChannel: "[Auxiliary2]",
+        Hotcue_Toggle: true,
+        AutoloopToggle: false,
+        BeatloopRollToggle: false,
+        slipenabledToggle: false,
+        previousJogValue: 0
+    },
+    2: {
+        blinktimer: 0,
+        hotcuevalue: 0,
+        LEDblink: true,
+        midiStatus: 0x93,
+        channel: "[Channel2]",
+        auxChannel: "[Auxiliary1]",
+        Hotcue_Toggle: true,
+        AutoloopToggle: false,
+        BeatloopRollToggle: false,
+        slipenabledToggle: false,
+        previousJogValue: 0
     }
+}
 
-    if (engine.isScratching(deckNumber)) {
-        if (MSB >= MixstreamPro.previousJogValue1) {
-            engine.scratchTick(deckNumber, MSB / 2); // Scratch!
-            MixstreamPro.previousJogValue1 = value;
-        }
-        else {
-            engine.scratchTick(deckNumber, -MSB / 2); // Reverse Scratch!
-            MixstreamPro.previousJogValue1 = value;
-        }
+// Generic track loaded callback - works for both decks
+MixstreamPro.trackLoadedCallback = function (channel, control, value, status, group) {
+    var deckNum = script.deckFromGroup(group);
+    if (!deckNum || deckNum < 1 || deckNum > 2) {
+        print("Warning: Invalid deck number in trackLoadedCallback: " + deckNum + " from group: " + group);
+        return;
     }
-    else // Jog
-    {
-        if (MSB >= MixstreamPro.previousJogValue1) {
-            engine.setValue(group, "jog", MSB * MixstreamPro.jogSensitivity);
-            MixstreamPro.previousJogValue1 = value;
-        }
-        else {
-            engine.setValue(group, "jog", -MSB * MixstreamPro.jogSensitivity);
-            MixstreamPro.previousJogValue1 = value;
-        }
-    }
-};
+    var deckState = MixstreamPro.deck[deckNum];
+    var otherDeckNum = deckNum === 1 ? 2 : 1;
+    var otherChannel = MixstreamPro.deck[otherDeckNum].channel;
 
-// Init Hotcue variables
-MixstreamPro.blinktimer4 = 0
-MixstreamPro.hotcuevalue1 = 0
-MixstreamPro.LEDblink4 = true
+    // Reset toggles
+    deckState.Hotcue_Toggle = true;
+    deckState.AutoloopToggle = false;
+    deckState.BeatloopRollToggle = false;
 
-// TrackLoaded Callback functions
-MixstreamPro.track_loaded1 = function (channel, control, value, status, group) {
-    //print(trackloaded == true ? 'Track 2 Loaded' : 'Track 2 Not Loaded')
-    // engine.setValue("[Channel1]", "eject", 1)
-    MixstreamPro.Hotcue_Toggle1 = true
-    MixstreamPro.AutoloopToggle1 = false
-    MixstreamPro.BeatloopRollToggle1 = false
-
-    // AUX1 channel SPOTIFY Helper
-    if (engine.getValue("[Channel1]", "track_loaded") !== true && engine.getValue("[Channel2]", "track_loaded") !== true) {
+    // AUX channel SPOTIFY Helper
+    if (!engine.getValue(group, "track_loaded") && !engine.getValue(otherChannel, "track_loaded")) {
         midi.sendShortMsg(status, 0x0E, 0x7f);
         midi.sendShortMsg(status, 0x0F, 0x7f);
         midi.sendShortMsg(status, 0x10, 0x7f);
         midi.sendShortMsg(status, 0x11, 0x7f);
         midi.sendShortMsg(status, 0x12, 0x7f);
-    } else
-        if (engine.getValue("[Channel1]", "track_loaded") == true && engine.getValue("[Channel2]", "play_indicator") !== 1) {
-            engine.setValue("[Auxiliary1]", "orientation", 2)
-        } else
-            if (engine.getValue("[Channel1]", "track_loaded") == true && engine.getValue("[Channel2]", "play_indicator") == 1) {
-                engine.setValue("[Auxiliary1]", "orientation", 0)
-            }
+    } else if (engine.getValue(group, "track_loaded") && !engine.getValue(otherChannel, "play_indicator")) {
+        engine.setValue(deckState.auxChannel, "orientation", deckNum === 1 ? 2 : 0);
+    } else if (engine.getValue(group, "track_loaded") && engine.getValue(otherChannel, "play_indicator")) {
+        engine.setValue(deckState.auxChannel, "orientation", deckNum === 1 ? 0 : 2);
+    }
 
-    var hotcues_enabled1 = 0
-    var hotcue_Led1 = 14
-    MixstreamPro.hotcuevalue1 = 0
+    var hotcues_enabled = 0;
+    var hotcue_Led = 14;
+    deckState.hotcuevalue = 0;
 
-    midi.sendShortMsg(0x92, 11, 0x01) // 0x0B
-    midi.sendShortMsg(0x92, 12, 0x01) // 0x0C
-    midi.sendShortMsg(0x92, 13, 0x01) // 0x0D
-    midi.sendShortMsg(0x92, 14, 0x01) // 0x0E
+    // Send initial LED messages
+    midi.sendShortMsg(deckState.midiStatus, 11, 0x01);
+    midi.sendShortMsg(deckState.midiStatus, 12, 0x01);
+    midi.sendShortMsg(deckState.midiStatus, 13, 0x01);
+    midi.sendShortMsg(deckState.midiStatus, 14, 0x01);
 
+    // Reset hotcue LEDs
     for (var i = 1; i <= 4; i++) {
-        midi.sendShortMsg(0x92, (hotcue_Led1 + i), 0x01) // ?? or 0x00
-        if (MixstreamPro.blinktimer4 !== 0) {
-            engine.stopTimer(MixstreamPro.blinktimer4);
-            //Reset timer
-            MixstreamPro.blinktimer4 = 0;
+        midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + i), 0x01);
+        if (deckState.blinktimer !== 0) {
+            engine.stopTimer(deckState.blinktimer);
+            deckState.blinktimer = 0;
         }
     }
 
+    // Check enabled hotcues
     for (var i = 1; i <= 8; i++) {
-        hotcues_enabled1 += engine.getValue("[Channel1]", "hotcue_" + i + "_enabled")
-        if (hotcues_enabled1 !== 0 && i < 5 && hotcues_enabled1 !== MixstreamPro.hotcuevalue1) {
-            midi.sendShortMsg(0x92, hotcue_Led1 + hotcues_enabled1, 0x7f)
-            MixstreamPro.hotcuevalue1 = hotcues_enabled1
+        hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
+        if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
+            midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
+            deckState.hotcuevalue = hotcues_enabled;
         }
 
-        if (hotcues_enabled1 !== 0 && i > 4 && hotcues_enabled1 !== MixstreamPro.hotcuevalue1) {
-            midi.sendShortMsg(0x92, (hotcue_Led1 + hotcues_enabled1) - 4, 0x7f)
-            MixstreamPro.hotcuevalue1 = hotcues_enabled1
+        if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
+            midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
+            deckState.hotcuevalue = hotcues_enabled;
         }
     }
 
-    if (MixstreamPro.hotcuevalue1 > 4) {
-        MixstreamPro.blinktimer4 = engine.beginTimer(500, function () {
-            if (MixstreamPro.LEDblink4 == true) {
-                midi.sendShortMsg(0x92, 0x0B, 0x7f) // 0x0B= 11
-                MixstreamPro.LEDblink4 = false
+    // Handle blinking for hotcues > 4
+    if (deckState.hotcuevalue > 4) {
+        var midiStatus = deckState.midiStatus;
+        var deckStateRef = deckState;
+        deckState.blinktimer = engine.beginTimer(500, function () {
+            if (deckStateRef.LEDblink) {
+                midi.sendShortMsg(midiStatus, 0x0B, 0x7f);
+                deckStateRef.LEDblink = false;
             } else {
-                midi.sendShortMsg(0x92, 0x0B, 0x01)
-                MixstreamPro.LEDblink4 = true
+                midi.sendShortMsg(midiStatus, 0x0B, 0x01);
+                deckStateRef.LEDblink = true;
             }
         });
     }
 
-    if (MixstreamPro.hotcuevalue1 < 4) {
-        midi.sendShortMsg(0x92, 0x0B, 0x7f)
+    if (deckState.hotcuevalue < 4) {
+        midi.sendShortMsg(deckState.midiStatus, 0x0B, 0x7f);
     }
 
-    if (MixstreamPro.hotcuevalue1 == 0) {
-        midi.sendShortMsg(0x92, 0x0B, 0x01)
-        return MixstreamPro.hotcuevalue1
+    if (deckState.hotcuevalue === 0) {
+        midi.sendShortMsg(deckState.midiStatus, 0x0B, 0x01);
+        return deckState.hotcuevalue;
     }
 
-    MixstreamPro.previousJogValue1 = 0
-    engine.setValue("[Channel1]", "beatloop_activate", false)
-    engine.setValue("[Channel1]", "beatloop_size", 8)
-
+    deckState.previousJogValue = 0;
+    engine.setValue(group, "beatloop_activate", false);
+    engine.setValue(group, "beatloop_size", 8);
 }
 
-MixstreamPro.blinktimer5 = 0
-MixstreamPro.hotcuevalue2 = 0
-MixstreamPro.LEDblink5 = true
-
-MixstreamPro.track_loaded2 = function (channel, control, value, status, group) {
-    //print(trackloaded == true ? 'Track 1 Loaded' : 'Track 1 Not Loaded')
-    MixstreamPro.Hotcue_Toggle2 = true
-    MixstreamPro.AutoloopToggle2 = false
-    MixstreamPro.BeatloopRollToggle2 = false
-
-    // AUX1 channel SPOTIFY Helper
-    if (engine.getValue("[Channel1]", "track_loaded") !== true && engine.getValue("[Channel2]", "track_loaded") !== true) {
-        midi.sendShortMsg(status, 0x0E, 0x7f);
-        midi.sendShortMsg(status, 0x0F, 0x7f);
-        midi.sendShortMsg(status, 0x10, 0x7f);
-        midi.sendShortMsg(status, 0x11, 0x7f);
-        midi.sendShortMsg(status, 0x12, 0x7f);
-    } else
-        if (engine.getValue("[Channel2]", "track_loaded") == true && engine.getValue("[Channel1]", "play_indicator") !== 1) {
-            engine.setValue("[Auxiliary1]", "orientation", 0)
-        } else
-            if (engine.getValue("[Channel1]", "track_loaded") == true && engine.getValue("[Channel1]", "play_indicator") == 1) {
-                engine.setValue("[Auxiliary1]", "orientation", 2)
-            }
-
-    var hotcues_enabled2 = 0
-    var hotcue_Led2 = 14
-    MixstreamPro.hotcuevalue2 = 0
-
-    midi.sendShortMsg(0x93, 11, 0x01)
-    midi.sendShortMsg(0x93, 12, 0x01)
-    midi.sendShortMsg(0x93, 13, 0x01)
-    midi.sendShortMsg(0x93, 14, 0x01)
-
-    for (var i = 1; i <= 4; i++) {
-        midi.sendShortMsg(0x93, (hotcue_Led2 + i), 0x01)
-        if (MixstreamPro.blinktimer5 !== 0) {
-            engine.stopTimer(MixstreamPro.blinktimer5);
-            //Reset timer
-            MixstreamPro.blinktimer5 = 0;
-        }
-    }
-
-    for (var i = 1; i <= 8; i++) {
-        hotcues_enabled2 += engine.getValue("[Channel2]", "hotcue_" + i + "_enabled")
-        if (hotcues_enabled2 !== 0 && i < 5 && hotcues_enabled2 !== MixstreamPro.hotcuevalue2) {
-            midi.sendShortMsg(0x93, hotcue_Led2 + hotcues_enabled2, 0x7f)
-            MixstreamPro.hotcuevalue2 = hotcues_enabled2
-        }
-
-        if (hotcues_enabled2 !== 0 && i > 4 && hotcues_enabled2 !== MixstreamPro.hotcuevalue2) {
-            midi.sendShortMsg(0x93, (hotcue_Led2 + hotcues_enabled2) - 4, 0x7f)
-            MixstreamPro.hotcuevalue2 = hotcues_enabled2
-        }
-    }
-
-    if (MixstreamPro.hotcuevalue2 > 4) {
-        MixstreamPro.blinktimer5 = engine.beginTimer(500, function () {
-            if (MixstreamPro.LEDblink5 == true) {
-                midi.sendShortMsg(0x93, 0x0B, 0x7f)
-                MixstreamPro.LEDblink5 = false
-            } else {
-                midi.sendShortMsg(0x93, 0x0B, 0x01)
-                MixstreamPro.LEDblink5 = true
-            }
-        });
-    }
-
-    if (MixstreamPro.hotcuevalue2 < 4) {
-        midi.sendShortMsg(0x93, 0x0B, 0x7f)
-    }
-
-    if (MixstreamPro.hotcuevalue2 == 0) {
-        midi.sendShortMsg(0x93, 0x0B, 0x01)
-        return MixstreamPro.hotcuevalue2
-    }
-
-    MixstreamPro.previousJogValue2 = 0
-    engine.setValue("[Channel2]", "beatloop_activate", false)
-    engine.setValue("[Channel2]", "beatloop_size", 8)
-}
-
-// TOGGLE slipenabled buttons
-MixstreamPro.slipenabledToggle1 = false
-
-MixstreamPro.slip_enabled_toggle1 = function (channel, control, value, status, group) {
+// Generic slip_enabled_toggle function for both decks
+MixstreamPro.scratchToggle = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
     if (value === 127) {
-        if (MixstreamPro.slipenabledToggle1 == false) {
-            engine.setValue("[Channel1]", "slip_enabled", true);
+        var deckNum = script.deckFromGroup(group);
+        var deckState = MixstreamPro.deck[deckNum];
+        
+        if (!deckState.slipenabledToggle) {
+            engine.setValue(group, "slip_enabled", true);
             midi.sendShortMsg(status, 0x23, 0x7f);
-            MixstreamPro.slipenabledToggle1 = true
-        } else
-            if (MixstreamPro.slipenabledToggle1 == true) {
-                engine.setValue("[Channel1]", "slip_enabled", false);
-                midi.sendShortMsg(status, 0x23, 0x01);
-                MixstreamPro.slipenabledToggle1 = false
-            }
-    } else
-        if (value === 0) { return }
+            deckState.slipenabledToggle = true;
+        } else {
+            engine.setValue(group, "slip_enabled", false);
+            midi.sendShortMsg(status, 0x23, 0x01);
+            deckState.slipenabledToggle = false;
+        }
+    }
 }
 
-MixstreamPro.slipenabledToggle2 = false
+// Generic HOTCUE toggle function for both decks
+MixstreamPro.hotCueOrStemsToggle = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
+    var deckNum = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNum];
+    var PlayStatus = engine.getValue(group, "play_indicator");
+    var trackloaded = engine.getValue(group, "track_loaded");
 
-MixstreamPro.slip_enabled_toggle2 = function (channel, control, value, status, group) {
-    if (value === 127) {
-        if (MixstreamPro.slipenabledToggle2 == false) {
-            engine.setValue("[Channel2]", "slip_enabled", true);
-            midi.sendShortMsg(status, 0x23, 0x7f);
-            MixstreamPro.slipenabledToggle2 = true
-        } else
-            if (MixstreamPro.slipenabledToggle2 == true) {
-                engine.setValue("[Channel2]", "slip_enabled", false);
-                midi.sendShortMsg(status, 0x23, 0x01);
-                MixstreamPro.slipenabledToggle2 = false
-            }
-    } else
-        if (value === 0) { return }
-}
-
-// TOGGLE HOTCUE buttons
-MixstreamPro.Hotcue_Toggle1 = true
-
-MixstreamPro.cue_goto_toggle1 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel1]", "play_indicator")
-    var trackloaded = engine.getValue("[Channel1]", "track_loaded")
-
-    var hotcues_enabled1 = 0
-    var hotcue_Led1 = 14
-    MixstreamPro.hotcuevalue1 = 0
+    var hotcues_enabled = 0;
+    var hotcue_Led = 14;
+    deckState.hotcuevalue = 0;
 
     midi.sendShortMsg(status, 0x0C, 0x01);
 
-    if (value === 127 && PlayStatus == false && trackloaded == true) {
-        if (MixstreamPro.Hotcue_Toggle1 == true) {
-            MixstreamPro.Hotcue_Toggle1 = false
+    if (value === 127 && !PlayStatus && trackloaded) {
+        if (deckState.Hotcue_Toggle) {
+            deckState.Hotcue_Toggle = false;
 
             for (var i = 1; i <= 4; i++) {
-                midi.sendShortMsg(0x92, (hotcue_Led1 + i), 0x01)
+                midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + i), 0x01);
             }
+        } else {
+            midi.sendShortMsg(status, 0x0B, 0x7f);
+            deckState.Hotcue_Toggle = true;
 
-        } else
-            if (MixstreamPro.Hotcue_Toggle1 == false) {
-                midi.sendShortMsg(status, 0x0B, 0x7f);
-                MixstreamPro.Hotcue_Toggle1 = true
+            for (var i = 1; i <= 8; i++) {
+                hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
+                if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
+                    midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
+                    deckState.hotcuevalue = hotcues_enabled;
+                }
 
-                for (var i = 1; i <= 8; i++) {
-                    hotcues_enabled1 += engine.getValue("[Channel1]", "hotcue_" + i + "_enabled")
-                    if (hotcues_enabled1 !== 0 && i < 5 && hotcues_enabled1 !== MixstreamPro.hotcuevalue1) {
-                        midi.sendShortMsg(0x92, hotcue_Led1 + hotcues_enabled1, 0x7f)
-                        MixstreamPro.hotcuevalue1 = hotcues_enabled1
-                    }
-
-                    if (hotcues_enabled1 !== 0 && i > 4 && hotcues_enabled1 !== MixstreamPro.hotcuevalue1) {
-                        midi.sendShortMsg(0x92, (hotcue_Led1 + hotcues_enabled1) - 4, 0x7f)
-                        MixstreamPro.hotcuevalue1 = hotcues_enabled1
-                    }
+                if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
+                    midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
+                    deckState.hotcuevalue = hotcues_enabled;
                 }
             }
-    } else
-        if (value === 0) { return }
+        }
+    }
 }
 
-MixstreamPro.Hotcue_Toggle2 = true
+// Generic SAVED loop function for both decks
+MixstreamPro.savedLoopToggle = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
+    var deckNum = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNum];
+    var LoopIn = engine.getValue(group, "loop_start_position");
+    var PlayStatus = engine.getValue(group, "play_indicator");
 
-MixstreamPro.cue_goto_toggle2 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel2]", "play_indicator")
-    var trackloaded = engine.getValue("[Channel2]", "track_loaded")
-
-    var hotcues_enabled2 = 0
-    var hotcue_Led2 = 14
-    MixstreamPro.hotcuevalue2 = 0
-
-    midi.sendShortMsg(status, 0x0C, 0x01);
-
-    if (value === 127 && PlayStatus == false && trackloaded == true) {
-        if (MixstreamPro.Hotcue_Toggle2 == true) {
-            MixstreamPro.Hotcue_Toggle2 = false
-
-            for (var i = 1; i <= 4; i++) {
-                midi.sendShortMsg(0x93, (hotcue_Led2 + i), 0x01)
-            }
-
-        } else
-            if (MixstreamPro.Hotcue_Toggle2 == false) {
-                midi.sendShortMsg(status, 0x0B, 0x7f);
-                MixstreamPro.Hotcue_Toggle2 = true
-
-                for (var i = 1; i <= 8; i++) {
-                    hotcues_enabled2 += engine.getValue("[Channel2]", "hotcue_" + i + "_enabled")
-                    if (hotcues_enabled2 !== 0 && i < 5 && hotcues_enabled2 !== MixstreamPro.hotcuevalue2) {
-                        midi.sendShortMsg(0x93, hotcue_Led2 + hotcues_enabled2, 0x7f)
-                        MixstreamPro.hotcuevalue2 = hotcues_enabled2
-                    }
-
-                    if (hotcues_enabled2 !== 0 && i > 4 && hotcues_enabled2 !== MixstreamPro.hotcuevalue2) {
-                        midi.sendShortMsg(0x93, (hotcue_Led2 + hotcues_enabled2) - 4, 0x7f)
-                        MixstreamPro.hotcuevalue2 = hotcues_enabled2
-                    }
-                }
-            }
-    } else
-        if (value === 0) { return }
-}
-
-// TOGGLE SAVED loop buttons
-MixstreamPro.reloop_toggle1 = function (channel, control, value, status, group) {
-    var LoopIn = engine.getValue("[Channel1]", "loop_start_position")
-    var PlayStatus = engine.getValue("[Channel1]", "play_indicator")
-
-    if (LoopIn != -1) {
-        if (value === 127 && engine.getValue("[Channel1]", "track_loaded") == true && PlayStatus == true) {
-            if (engine.getValue("[Channel1]", "loop_enabled") === 0) {
-                script.triggerControl("[Channel1]", "reloop_toggle");
-
+    if (LoopIn !== -1) {
+        if (value === 127 && engine.getValue(group, "track_loaded") && PlayStatus) {
+            if (!engine.getValue(group, "loop_enabled")) {
+                script.triggerControl(group, "reloop_toggle");
                 midi.sendShortMsg(status, 0x0C, 0x7f);
 
                 midi.sendShortMsg(status, 0x0B, 0x01);
@@ -591,56 +444,29 @@ MixstreamPro.reloop_toggle1 = function (channel, control, value, status, group) 
                 midi.sendShortMsg(status, 0x11, 0x01);
                 midi.sendShortMsg(status, 0x12, 0x01);
 
-                MixstreamPro.Hotcue_Toggle1 = false
+                deckState.Hotcue_Toggle = false;
             } else {
-                script.triggerControl("[Channel1]", "reloop_toggle");
+                script.triggerControl(group, "reloop_toggle");
                 midi.sendShortMsg(status, 0x0C, 0x01);
             }
-        } else
-            if (value === 0) { return }
+        }
     }
 }
 
-MixstreamPro.reloop_toggle2 = function (channel, control, value, status, group) {
-    var LoopIn = engine.getValue("[Channel2]", "loop_start_position")
-    var PlayStatus = engine.getValue("[Channel2]", "play_indicator")
+// Generic AUTO loop button function for both decks
+MixstreamPro.autoLoopToggle = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
+    var deckNum = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNum];
+    var PlayStatus = engine.getValue(group, "play_indicator");
 
-    if (LoopIn != -1) {
-        if (value === 127 && engine.getValue("[Channel2]", "track_loaded") == true && PlayStatus == true) {
-            if (engine.getValue("[Channel2]", "loop_enabled") === 0) {
-                script.triggerControl("[Channel2]", "reloop_toggle");
-                midi.sendShortMsg(status, 0x0C, 0x7f);
+    if (value === 127 && PlayStatus) {
+        if (!deckState.AutoloopToggle) {
+            deckState.AutoloopToggle = true;
 
-                midi.sendShortMsg(status, 0x0B, 0x01);
-                midi.sendShortMsg(status, 0x0D, 0x01);
-                midi.sendShortMsg(status, 0x0E, 0x01);
-                midi.sendShortMsg(status, 0x0F, 0x01);
-                midi.sendShortMsg(status, 0x10, 0x01);
-                midi.sendShortMsg(status, 0x11, 0x01);
-                midi.sendShortMsg(status, 0x12, 0x01);
-
-                MixstreamPro.Hotcue_Toggle2 = false
-            } else {
-                script.triggerControl("[Channel2]", "reloop_toggle");
-                midi.sendShortMsg(status, 0x0C, 0x01);
-            }
-        } else
-            if (value === 0) { return }
-    }
-}
-
-// TOGGLE AUTO loop buttons
-MixstreamPro.AutoloopToggle1 = false
-
-MixstreamPro.Autoloop1 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel1]", "play_indicator")
-
-    if (value === 127 && PlayStatus == true) {
-        if (MixstreamPro.AutoloopToggle1 == false) {
-            MixstreamPro.AutoloopToggle1 = true
-
-            engine.setValue("[Channel1]", "beatloop_activate", true)
-            engine.setValue("[Channel1]", "beatloop_size", 4)
+            engine.setValue(group, "beatloop_activate", true);
+            engine.setValue(group, "beatloop_size", 4);
             midi.sendShortMsg(status, 0x0E, 0x7f);
 
             midi.sendShortMsg(status, 0x0B, 0x01);
@@ -651,85 +477,39 @@ MixstreamPro.Autoloop1 = function (channel, control, value, status, group) {
             midi.sendShortMsg(status, 0x11, 0x01);
             midi.sendShortMsg(status, 0x12, 0x7f);
 
-            MixstreamPro.Hotcue_Toggle1 = false
-
-        } else
-            if (MixstreamPro.AutoloopToggle1 == true) {
-                MixstreamPro.AutoloopToggle1 = false
-                midi.sendShortMsg(status, 0x0E, 0x01);
-                midi.sendShortMsg(status, 0x0F, 0x01);
-                midi.sendShortMsg(status, 0x10, 0x01);
-                midi.sendShortMsg(status, 0x11, 0x01);
-                midi.sendShortMsg(status, 0x12, 0x01);
-
-                script.triggerControl(group, "reloop_toggle"); // Stop Auto Loop
-                engine.setValue("[Channel1]", "beatloop_activate", false)
-
-                engine.setValue("[Channel1]", "loop_remove", true)
-
-                MixstreamPro.Hotcue_Toggle1 = true
-            }
-    } else
-        if (value === 0) { return }
-}
-
-MixstreamPro.AutoloopToggle2 = false
-
-MixstreamPro.Autoloop2 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel2]", "play_indicator")
-
-    if (value === 127 && PlayStatus == true) {
-        if (MixstreamPro.AutoloopToggle2 == false) {
-            MixstreamPro.AutoloopToggle2 = true
-
-            engine.setValue("[Channel2]", "beatloop_activate", true)
-            engine.setValue("[Channel2]", "beatloop_size", 4)
-
-            midi.sendShortMsg(status, 0x0E, 0x7f);
-
-            midi.sendShortMsg(status, 0x0B, 0x01);
-            midi.sendShortMsg(status, 0x0C, 0x01);
-            midi.sendShortMsg(status, 0x0D, 0x01);
+            deckState.Hotcue_Toggle = false;
+        } else {
+            deckState.AutoloopToggle = false;
+            midi.sendShortMsg(status, 0x0E, 0x01);
             midi.sendShortMsg(status, 0x0F, 0x01);
             midi.sendShortMsg(status, 0x10, 0x01);
             midi.sendShortMsg(status, 0x11, 0x01);
-            midi.sendShortMsg(status, 0x12, 0x7f);
+            midi.sendShortMsg(status, 0x12, 0x01);
 
-            MixstreamPro.Hotcue_Toggle2 = false
+            script.triggerControl(group, "reloop_toggle");
+            engine.setValue(group, "beatloop_activate", false);
+            engine.setValue(group, "loop_remove", true);
 
-        } else
-            if (MixstreamPro.AutoloopToggle2 == true) {
-                MixstreamPro.AutoloopToggle2 = false
-                midi.sendShortMsg(status, 0x0E, 0x01);
-                midi.sendShortMsg(status, 0x0F, 0x01);
-                midi.sendShortMsg(status, 0x10, 0x01);
-                midi.sendShortMsg(status, 0x11, 0x01);
-                midi.sendShortMsg(status, 0x12, 0x01);
-
-                script.triggerControl(group, "reloop_toggle"); // Stop Auto Loop
-                engine.setValue("[Channel2]", "beatloop_activate", false)
-
-                engine.setValue("[Channel2]", "loop_remove", true)
-
-                MixstreamPro.Hotcue_Toggle2 = true
-            }
-    } else
-        if (value === 0) { return }
+            deckState.Hotcue_Toggle = true;
+        }
+    }
 }
 
-// TOGGLE AUTOLOOP ROLL buttons
-MixstreamPro.BeatloopRollToggle1 = false
+// Generic AUTOLOOP ROLL button function for both decks
+MixstreamPro.rollOrSamplerToggle = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
+    var deckNum = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNum];
+    var PlayStatus = engine.getValue(group, "play_indicator");
+    
+    engine.setValue(group, "beatloop_size", 4);
 
-MixstreamPro.BeatloopRoll1 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel1]", "play_indicator")
-    engine.setValue("[Channel1]", "beatloop_size", 4)
+    if (value === 127 && PlayStatus === 1) {
+        if (!deckState.BeatloopRollToggle) {
+            deckState.BeatloopRollToggle = true;
 
-    if (value === 127 && PlayStatus == 1) {
-        if (MixstreamPro.BeatloopRollToggle1 == false) {
-            MixstreamPro.BeatloopRollToggle1 = true
-
-            engine.setValue("[Channel1]", "beatloop_activate", true)
-            //script.triggerControl(group, "reloop_toggle");
+            engine.setValue(group, "beatloop_activate", true);
 
             midi.sendShortMsg(status, 0x0D, 0x7f);
 
@@ -741,67 +521,20 @@ MixstreamPro.BeatloopRoll1 = function (channel, control, value, status, group) {
             midi.sendShortMsg(status, 0x11, 0x01);
             midi.sendShortMsg(status, 0x12, 0x7f);
 
-            MixstreamPro.Hotcue_Toggle1 = false
-            MixstreamPro.AutoloopToggle1 = false
-
-        } else
-            if (MixstreamPro.BeatloopRollToggle1 == true) {
-                MixstreamPro.BeatloopRollToggle1 = false
-                midi.sendShortMsg(status, 0x0D, 0x01);
-                midi.sendShortMsg(status, 0x0F, 0x01);
-                midi.sendShortMsg(status, 0x10, 0x01);
-                midi.sendShortMsg(status, 0x11, 0x01);
-                midi.sendShortMsg(status, 0x12, 0x01);
-
-                script.triggerControl(group, "reloop_toggle");
-
-                engine.setValue("[Channel1]", "loop_remove", true)
-            }
-    } else
-        if (value === 0) { return }
-}
-
-MixstreamPro.BeatloopRollToggle2 = false
-
-MixstreamPro.BeatloopRoll2 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue("[Channel2]", "play_indicator")
-    engine.setValue("[Channel2]", "beatloop_size", 4)
-
-    if (value === 127 && PlayStatus == 1) {
-        if (MixstreamPro.BeatloopRollToggle2 == false) {
-            MixstreamPro.BeatloopRollToggle2 = true
-
-            engine.setValue("[Channel2]", "beatloop_activate", true)
-            //script.triggerControl(group, "reloop_toggle");
-
-            midi.sendShortMsg(status, 0x0D, 0x7f);
-
-            midi.sendShortMsg(status, 0x0B, 0x01);
-            midi.sendShortMsg(status, 0x0C, 0x01);
-            midi.sendShortMsg(status, 0x0E, 0x01);
+            deckState.Hotcue_Toggle = false;
+            deckState.AutoloopToggle = false;
+        } else {
+            deckState.BeatloopRollToggle = false;
+            midi.sendShortMsg(status, 0x0D, 0x01);
             midi.sendShortMsg(status, 0x0F, 0x01);
             midi.sendShortMsg(status, 0x10, 0x01);
             midi.sendShortMsg(status, 0x11, 0x01);
-            midi.sendShortMsg(status, 0x12, 0x7f);
+            midi.sendShortMsg(status, 0x12, 0x01);
 
-            MixstreamPro.Hotcue_Toggle2 = false
-            MixstreamPro.AutoloopToggle2 = false
-
-        } else
-            if (MixstreamPro.BeatloopRollToggle2 == true) {
-                MixstreamPro.BeatloopRollToggle2 = false
-                midi.sendShortMsg(status, 0x0D, 0x01);
-                midi.sendShortMsg(status, 0x0F, 0x01);
-                midi.sendShortMsg(status, 0x10, 0x01);
-                midi.sendShortMsg(status, 0x11, 0x01);
-                midi.sendShortMsg(status, 0x12, 0x01);
-
-                script.triggerControl(group, "reloop_toggle");
-
-                engine.setValue("[Channel2]", "loop_remove", true)
-            }
-    } else
-        if (value === 0) { return }
+            script.triggerControl(group, "reloop_toggle");
+            engine.setValue(group, "loop_remove", true);
+        }
+    }
 }
 
 // SHIFT buttons 4 Pads
@@ -813,688 +546,156 @@ MixstreamPro.shiftButton = function (channel, control, value, status, group) {
     MixstreamPro.shift = !MixstreamPro.shift; // '!' inverts a boolean (true/false) value
 }
 
-// Hot Cue
-MixstreamPro.Deck1_Pad1 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle1 == true && MixstreamPro.AutoloopToggle1 == false && PlayStatus == false) {
-        // only when Hot Cue button is active
-        // only do stuff when the button is pressed, not when it is released
-        if (MixstreamPro.shift) {
-            // do something when this button and the shift button are both pressed
-            engine.setValue("[Channel1]", "hotcue_5_gotoandstop", 1);
-        } else {
-            // do something else when this button is pressed but the shift button is not pressed
-            engine.setValue("[Channel1]", "hotcue_1_gotoandstop", 1);
+MixstreamPro.performancePad = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+    
+    var deckNum = script.deckFromGroup(group);
+    var deckState = MixstreamPro.deck[deckNum];
+    var PlayStatus = engine.getValue(group, "play_indicator");
+    var padNumber = control - 14; // Pads start at control 15 (0x0F), so Pad1=15, Pad2=16, etc.
+    
+    // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
+    var padConfigs = {
+        1: { hotcue: [1, 5], autoloop: 0.5, autoloopShift: 0.25, beatloopRoll: 0.25, midiLED: 0x0F },
+        2: { hotcue: [2, 6], autoloop: 2, autoloopShift: 2, beatloopRoll: 0.5, midiLED: 0x10 },
+        3: { hotcue: [3, 7], autoloop: 4, autoloopShift: 4, beatloopRoll: 1, midiLED: 0x11 },
+        4: { hotcue: [4, 8], autoloop: 8, autoloopShift: 8, beatloopRoll: 2, midiLED: 0x12 }
+    };
+    
+    var config = padConfigs[padNumber];
+    
+    // HOTCUE MODE
+    if (value === 127 && deckState.Hotcue_Toggle && !deckState.AutoloopToggle && !PlayStatus) {
+        var hotcueNum = MixstreamPro.shift ? config.hotcue[1] : config.hotcue[0];
+        engine.setValue(group, "hotcue_" + hotcueNum + "_gotoandstop", 1);
+    }
+    
+    // AUTOLOOP MODE
+    if (value === 127 && deckState.AutoloopToggle && PlayStatus) {
+        // Send LED feedback
+        for (var i = 1; i <= 4; i++) {
+            var ledMsg = (i === padNumber) ? 0x7f : 0x01;
+            midi.sendShortMsg(status, (14 + i), ledMsg);
         }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x0F, 0x01);
-            return
+        
+        var loopSize = MixstreamPro.shift ? config.autoloopShift : config.autoloop;
+        engine.setValue(group, "beatloop_size", loopSize);
+        
+        var loopSizeValue = engine.getValue(group, "beatloop_size");
+        engine.setValue(group, "beatloop_" + loopSizeValue + "_activate", true);
+        engine.setValue(group, "beatloop_activate", true);
+        script.triggerControl(group, "reloop_toggle");
+    }
+    
+    // BEATLOOPROLL MODE
+    if (value === 127 && deckState.BeatloopRollToggle && PlayStatus) {
+        // Send LED feedback
+        for (var i = 1; i <= 4; i++) {
+            var ledMsg = (i === padNumber) ? 0x7f : 0x01;
+            midi.sendShortMsg(status, (14 + i), ledMsg);
         }
-
-    // Autoloop 1 / 0.5 - 0.25 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle1 == true && PlayStatus == 1) {
-        // Delete loop_end
-        midi.sendShortMsg(status, 0x0F, 0x7f);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel1]", "beatloop_size", 1 / 4)
-        } else { engine.setValue("[Channel1]", "beatloop_size", 1 / 2) }
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle")
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x0F, 0x01);
-            return
-        }
-
-    // AutoloopRoll 0.25 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x7f);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
+        
         engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 0.25)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatlooproll_activate", true)
+        engine.setValue(group, "beatloop_size", config.beatloopRoll);
+        
+        var loopSizeValue = engine.getValue(group, "beatloop_size");
+        engine.setValue(group, "beatlooproll_" + loopSizeValue + "_activate", true);
+        engine.setValue(group, "beatlooproll_activate", true);
         script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x0F, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck1_Pad2 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle1 == true && MixstreamPro.AutoloopToggle1 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel1]", "hotcue_6_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel1]", "hotcue_2_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            // midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    // Autoloop 2 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x7f);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 2)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    // AutoloopRoll 0.5 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x7f);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 0.5)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck1_Pad3 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle1 == true && MixstreamPro.AutoloopToggle1 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel1]", "hotcue_7_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel1]", "hotcue_3_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    // Autoloop 4 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x7f);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 4)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    // AutoloopRoll 1 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x7f);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 1)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck1_Pad4 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle1 == true && MixstreamPro.AutoloopToggle1 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel1]", "hotcue_8_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel1]", "hotcue_4_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    // Autoloop 8 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x7f);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 8)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    // AutoloopRoll 2 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle1 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x7f);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel1]", "beatloop_size", 2)
-
-        var loopSize = engine.getValue("[Channel1]", "beatloop_size")
-
-        engine.setValue("[Channel1]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel1]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck2_Pad1 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle2 == true && MixstreamPro.AutoloopToggle2 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel2]", "hotcue_5_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel2]", "hotcue_1_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x0F, 0x01);
-            return
-        }
-
-    // Autoloop 1, 0.5 - 0.25 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle2 == true && PlayStatus == 1) {
-        // Delete loop_end
-        midi.sendShortMsg(status, 0x0F, 0x7f);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel2]", "beatloop_size", 1 / 4)
-        } else { engine.setValue("[Channel2]", "beatloop_size", 1 / 2) }
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x0F, 0x01);
-            return
-        }
-
-    // AutoloopRoll 0.125 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x7f);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 0.125)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x0F, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck2_Pad2 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle2 == true && MixstreamPro.AutoloopToggle2 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel2]", "hotcue_6_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel2]", "hotcue_2_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    // Autoloop 2 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x7f);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 2)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    // AutoloopRoll 0.25 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x7f);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 0.25)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x10, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck2_Pad3 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle2 == true && MixstreamPro.AutoloopToggle2 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel2]", "hotcue_7_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel2]", "hotcue_3_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    // Autoloop 4 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x7f);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 4)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    // AutoloopRoll 0.5 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x7f);
-        midi.sendShortMsg(status, 0x12, 0x01);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 0.5)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x11, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
-}
-
-MixstreamPro.Deck2_Pad4 = function (channel, control, value, status, group) {
-    var PlayStatus = engine.getValue(group, "play_indicator")
-
-    if (value === 127 && MixstreamPro.Hotcue_Toggle2 == true && MixstreamPro.AutoloopToggle2 == false && PlayStatus == false) {
-        if (MixstreamPro.shift) {
-            engine.setValue("[Channel2]", "hotcue_8_gotoandstop", 1);
-        } else {
-            engine.setValue("[Channel2]", "hotcue_4_gotoandstop", 1);
-        }
-    } else
-        if (value === 0) {
-            //midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    // Autoloop 8 beats
-    if (value === 127 && MixstreamPro.AutoloopToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x7f);
-
-        //engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 8)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatloop_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatloop_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    // AutoloopRoll 1 beats
-    if (value === 127 && MixstreamPro.BeatloopRollToggle2 == true && PlayStatus == 1) {
-        midi.sendShortMsg(status, 0x0F, 0x01);
-        midi.sendShortMsg(status, 0x10, 0x01);
-        midi.sendShortMsg(status, 0x11, 0x01);
-        midi.sendShortMsg(status, 0x12, 0x7f);
-
-        engine.setValue(group, "loop_end_position", -1);
-        engine.setValue("[Channel2]", "beatloop_size", 1)
-
-        var loopSize = engine.getValue("[Channel2]", "beatloop_size")
-
-        engine.setValue("[Channel2]", "beatlooproll_" + loopSize + "_activate", true)
-        engine.setValue("[Channel2]", "beatlooproll_activate", true)
-        script.triggerControl(group, "reloop_toggle");
-    } else
-        if (value === 0) {
-            midi.sendShortMsg(status, 0x12, 0x01);
-            return
-        }
-
-    //if (value === 0) { return }
+    }
 }
 
 // TOGGLE EFFECT Switch : HOLD / ON
-MixstreamPro.EffectToggleSwitch = function (channel, control, value, status, group) {
-    if (channel === 4 && value === 1 && MixstreamPro.toggle1 == false || channel === 4 && value === 2 && MixstreamPro.toggle1 == false) {
+// TOGGLE EFFECT Switch : HOLD / ON
+MixstreamPro.effectToggleSwitch = function (channel, control, value, status, group) {
+    // Get effect number based on channel (assuming 4 effects controlled by this)
+    // Check enabled states from effectStates
+    
+    if (channel === 4 && value === 1 && MixstreamPro.effectStates[1].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[1].toggle) {
         engine.setValue("[EffectRack1_EffectUnit1_Effect1]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit1_Effect1]", "enabled", 0);
     }
 
-    if (channel === 5 && value === 1 && MixstreamPro.toggle1 == false || channel === 5 && value === 2 && MixstreamPro.toggle1 == false) {
+    if (channel === 5 && value === 1 && MixstreamPro.effectStates[1].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[1].toggle) {
         engine.setValue("[EffectRack1_EffectUnit2_Effect1]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit2_Effect1]", "enabled", 0);
     }
 
-    if (channel === 4 && value === 1 && MixstreamPro.toggle2 == false || channel === 4 && value === 2 && MixstreamPro.toggle2 == false) {
+    if (channel === 4 && value === 1 && MixstreamPro.effectStates[2].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[2].toggle) {
         engine.setValue("[EffectRack1_EffectUnit1_Effect2]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit1_Effect2]", "enabled", 0);
     }
 
-    if (channel === 5 && value === 1 && MixstreamPro.toggle2 == false || channel === 5 && value === 2 && MixstreamPro.toggle2 == false) {
+    if (channel === 5 && value === 1 && MixstreamPro.effectStates[2].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[2].toggle) {
         engine.setValue("[EffectRack1_EffectUnit2_Effect2]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit2_Effect2]", "enabled", 0);
     }
 
-    if (channel === 4 && value === 1 && MixstreamPro.toggle3 == false || channel === 4 && value === 2 && MixstreamPro.toggle3 == false) {
+    if (channel === 4 && value === 1 && MixstreamPro.effectStates[3].toggle || channel === 4 && value === 2 && MixstreamPro.effectStates[3].toggle) {
         engine.setValue("[EffectRack1_EffectUnit1_Effect3]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit1_Effect3]", "enabled", 0);
     }
 
-    if (channel === 5 && value === 1 && MixstreamPro.toggle3 == false || channel === 5 && value === 2 && MixstreamPro.toggle3 == false) {
+    if (channel === 5 && value === 1 && MixstreamPro.effectStates[3].toggle || channel === 5 && value === 2 && MixstreamPro.effectStates[3].toggle) {
         engine.setValue("[EffectRack1_EffectUnit2_Effect3]", "enabled", 1);
     } else {
-        //value === 0
         engine.setValue("[EffectRack1_EffectUnit2_Effect3]", "enabled", 0);
     }
+}
 
-    // Quick Effect FILTER to MOOG FILTER
-    if (channel === 4 && value === 1 && MixstreamPro.toggle4 == false || channel === 4 && value === 2 && MixstreamPro.toggle4 == false) {
-        // engine.setValue("[EffectRack1_EffectUnit1_Effect3]", "enabled", 1);
-        // engine.setParameter("[QuickEffectRack1_[Channel1]]", "super1", 0.5);
-    } else {
+// TOGGLE EFFECT buttons - Effect state data
+MixstreamPro.effectStates = {
+    1: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x00 },
+    2: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x01 },
+    3: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x02 },
+    4: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x03 }
+}
 
-        // engine.setParameter("[QuickEffectRack1_[Channel1]]", "super1", 0.5);
+// Generic Effect button handler - maps CC -> effect and toggles effect enabled + LED
+MixstreamPro.effectButton = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+
+    var effectNum = control + 1; // CC 0 -> effect 1
+    var effectState = MixstreamPro.effectStates[effectNum];
+
+    if (value === 127) {
+        // If currently disabled -> enable and start blinking
+        if (!effectState.toggle) {
+            // // Ensure any previous timer is stopped
+            if (effectState.blinktimer !== 0) {
+                try { engine.stopTimer(effectState.blinktimer); } catch (e) {}
+                effectState.blinktimer = 0;
+            }
+
+            effectState.toggle = true; // now enabled
+            effectState.LEDblink = true;
+            var effectStateRef = effectState;
+            var midiCC = effectState.midiCC;
+            effectState.blinktimer = engine.beginTimer(500, function () {
+                if (effectStateRef.LEDblink) {
+                    midi.sendShortMsg(0x94, midiCC, 0x7F);
+                    effectStateRef.LEDblink = false;
+                } else {
+                    midi.sendShortMsg(0x94, midiCC, 0x01);
+                    effectStateRef.LEDblink = true;
+                }
+            });
+        } else {
+            // Currently enabled -> disable and stop blinking
+            effectState.toggle = false;
+
+            if (effectState.blinktimer !== 0) {
+                try { engine.stopTimer(effectState.blinktimer); } catch (e) {}
+                effectState.blinktimer = 0;
+            }
+
+            // Ensure LED shows off state
+            midi.sendShortMsg(0x94, effectState.midiCC, 0x01);
+        }
     }
-
-    if (channel === 5 && value === 1 && MixstreamPro.toggle4 == false || channel === 5 && value === 2 && MixstreamPro.toggle4 == false) {
-        // engine.setParameter("[QuickEffectRack1_[Channel2]]", "super1", 0.5);
-    } else {
-
-        // engine.setParameter("[QuickEffectRack1_[Channel2]]", "super1", 0.5);
-    }
-}
-
-// TOGGLE EFFECT buttons 
-MixstreamPro.toggle1 = true
-MixstreamPro.blinktimer1 = 0
-
-MixstreamPro.Effectbutton1 = function (channel, control, value, status, group) {
-    if (value === 127) {
-        MixstreamPro.LEDblink1 = true
-        if (MixstreamPro.toggle1 == true) {
-            //midi.sendShortMsg(status, 0x00, 0x7f);
-            MixstreamPro.blinktimer1 = engine.beginTimer(500, function () {
-                if (MixstreamPro.LEDblink1 == true) {
-                    midi.sendShortMsg(0x94, 0x00, 0x7F)
-                    MixstreamPro.LEDblink1 = false
-                } else {
-                    midi.sendShortMsg(0x94, 0x00, 0x01)
-                    MixstreamPro.LEDblink1 = true
-                }
-            });
-            MixstreamPro.toggle1 = false
-        } else
-            if (MixstreamPro.toggle1 == false) {
-                if (MixstreamPro.blinktimer1 !== 0) {
-                    engine.stopTimer(MixstreamPro.blinktimer1);
-                    //reset
-                    MixstreamPro.blinktimer1 = 0;
-                }
-                midi.sendShortMsg(0x94, 0x00, 0x01);
-                MixstreamPro.toggle1 = true
-            }
-    } else
-        if (value === 0) { return }
-}
-
-MixstreamPro.toggle2 = true
-MixstreamPro.blinktimer2 = 0
-
-MixstreamPro.Effectbutton2 = function (channel, control, value, status, group) {
-    if (value === 127) {
-        MixstreamPro.LEDblink2 = true
-        if (MixstreamPro.toggle2 == true) {
-            //midi.sendShortMsg(status, 0x01, 0x7f);
-            MixstreamPro.blinktimer2 = engine.beginTimer(500, function () {
-                if (MixstreamPro.LEDblink2 == true) {
-                    midi.sendShortMsg(0x94, 0x01, 0x7F)
-                    MixstreamPro.LEDblink2 = false
-                } else {
-                    midi.sendShortMsg(0x94, 0x01, 0x01)
-                    MixstreamPro.LEDblink2 = true
-                }
-            });
-            MixstreamPro.toggle2 = false
-        } else
-            if (MixstreamPro.toggle2 == false) {
-                if (MixstreamPro.blinktimer2 !== 0) {
-                    engine.stopTimer(MixstreamPro.blinktimer2);
-                    //Reset
-                    MixstreamPro.blinktimer2 = 0;
-                }
-
-                midi.sendShortMsg(0x94, 0x01, 0x01);
-                MixstreamPro.toggle2 = true
-            }
-    } else
-        if (value === 0) { return }
-}
-
-MixstreamPro.toggle3 = true
-MixstreamPro.blinktimer3 = 0
-
-MixstreamPro.Effectbutton3 = function (channel, control, value, status, group) {
-    if (value === 127) {
-        MixstreamPro.LEDblink3 = true
-        if (MixstreamPro.toggle3 == true) {
-            //midi.sendShortMsg(status, 0x02, 0x7f);
-            MixstreamPro.blinktimer3 = engine.beginTimer(500, function () {
-                if (MixstreamPro.LEDblink3 == true) {
-                    midi.sendShortMsg(0x94, 0x02, 0x7F)
-                    MixstreamPro.LEDblink3 = false
-                } else {
-                    midi.sendShortMsg(0x94, 0x02, 0x01)
-                    MixstreamPro.LEDblink3 = true
-                }
-            });
-            MixstreamPro.toggle3 = false
-        } else
-            if (MixstreamPro.toggle3 == false) {
-                if (MixstreamPro.blinktimer3 !== 0) {
-                    engine.stopTimer(MixstreamPro.blinktimer3);
-                    //Reset
-                    MixstreamPro.blinktimer3 = 0;
-                }
-
-                midi.sendShortMsg(0x94, 0x02, 0x01);
-                MixstreamPro.toggle3 = true
-            }
-    } else
-        if (value === 0) { return }
-}
-
-MixstreamPro.toggle4 = true
-MixstreamPro.blinktimer4 = 0
-
-MixstreamPro.Effectbutton4 = function (channel, control, value, status, group) {
-    if (value === 127) {
-        MixstreamPro.LEDblink4 = true
-        if (MixstreamPro.toggle4 == true) {
-            //midi.sendShortMsg(status, 0x02, 0x7f);
-            MixstreamPro.blinktimer4 = engine.beginTimer(500, function () {
-                if (MixstreamPro.LEDblink4 == true) {
-                    midi.sendShortMsg(0x94, 0x03, 0x7F)
-                    MixstreamPro.LEDblink4 = false
-                } else {
-                    midi.sendShortMsg(0x94, 0x03, 0x01)
-                    MixstreamPro.LEDblink4 = true
-                }
-            });
-            MixstreamPro.toggle4 = false
-        } else
-            if (MixstreamPro.toggle4 == false) {
-                if (MixstreamPro.blinktimer4 !== 0) {
-                    engine.stopTimer(MixstreamPro.blinktimer4);
-                    //Reset
-                    MixstreamPro.blinktimer4 = 0;
-                }
-
-                midi.sendShortMsg(0x94, 0x03, 0x01);
-                MixstreamPro.toggle4 = true
-            }
-    } else
-        if (value === 0) { return }
 }
