@@ -233,7 +233,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>cue_set</key>
+                <key>cue_default</key>
                 <description>MIDI Learned from 2 messages.</description>
                 <status>0x92</status>
                 <midino>0x09</midino>
@@ -243,7 +243,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>cue_set</key>
+                <key>cue_default</key>
                 <description>MIDI Learned from 2 messages.</description>
                 <status>0x93</status>
                 <midino>0x09</midino>
@@ -746,7 +746,7 @@
         <outputs>
             <output>
                 <group>[Channel1]</group>
-                <key>cue_indicator</key>
+                <key>cue_gotoandstop</key>
                 <description>CUE LED1</description>
                 <status>0x92</status>
                 <midino>0x09</midino>
@@ -791,7 +791,7 @@
             </output>
             <output>
                 <group>[Channel2]</group>
-                <key>cue_indicator</key>
+                <key>cue_gotoandstop</key>
                 <description>CUE LED2</description>
                 <status>0x93</status>
                 <midino>0x09</midino>
