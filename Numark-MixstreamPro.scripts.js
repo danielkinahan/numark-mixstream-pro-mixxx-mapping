@@ -463,26 +463,14 @@ MixstreamPro.padModeConfigs = {
     autoloop: {
         ledAddress: 0x0E,
         requiresTrack: false,
-        onActivate: function (group, deckState) {
-            engine.setValue(group, "beatloop_activate", true);
-            engine.setValue(group, "beatloop_size", 4);
-        },
-        onDeactivate: function (group, deckState) {
-            script.triggerControl(group, "reloop_toggle");
-            engine.setValue(group, "beatloop_activate", false);
-            engine.setValue(group, "loop_remove", true);
-        }
+        onActivate: function (group, deckState) { },
+        onDeactivate: function (group, deckState) { },
     },
     roll: {
         ledAddress: 0x0D,
         requiresTrack: false,
-        onActivate: function (group, deckState) {
-            engine.setValue(group, "beatloop_activate", true);
-        },
-        onDeactivate: function (group, deckState) {
-            script.triggerControl(group, "reloop_toggle");
-            engine.setValue(group, "loop_remove", true);
-        }
+        onActivate: function (group, deckState) { },
+        onDeactivate: function (group, deckState) { }
     }
 };
 
@@ -581,7 +569,6 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
                 engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 1);
             }
         } else if (value === 0) {
-            console.log("Hotcue Pad Released");
             engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 0);
         }
     }
@@ -597,30 +584,23 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         }
 
         let loopSize = deckState.padModes.autoloop === 1 ? config.autoloopBank1 : config.autoloopBank2;
-        engine.setValue(group, "beatloop_size", loopSize);
-
-        let loopSizeValue = engine.getValue(group, "beatloop_size");
-        engine.setValue(group, "beatloop_" + loopSizeValue + "_activate", true);
-        engine.setValue(group, "beatloop_activate", true);
-        script.triggerControl(group, "reloop_toggle");
+        engine.setValue(group, "beatloop_" + loopSize + "_toggle", true);
     }
 
     // BEATLOOPROLL MODE
-    if (value === 127 && deckState.padModes.roll) {
-        // Send LED feedback
-        for (let i = 1; i <= 4; i++) {
-            let ledMsg = (i === padNumber) ? 0x7f : 0x01;
-            midi.sendShortMsg(status, (14 + i), ledMsg);
-        }
-
+    if (deckState.padModes.roll) {
         let loopSize = deckState.padModes.roll === 1 ? config.beatloopRollBank1 : config.beatloopRollBank2;
-        engine.setValue(group, "loop_end_position", -1);
         engine.setValue(group, "beatloop_size", loopSize);
-
-        let loopSizeValue = engine.getValue(group, "beatloop_size");
-        engine.setValue(group, "beatlooproll_" + loopSizeValue + "_activate", true);
-        engine.setValue(group, "beatlooproll_activate", true);
-        script.triggerControl(group, "reloop_toggle");
+        if (value === 127) {
+            // Send LED feedback
+            for (let i = 1; i <= 4; i++) {
+                let ledMsg = (i === padNumber) ? 0x7f : 0x01;
+                midi.sendShortMsg(status, (14 + i), ledMsg);
+            }
+            engine.setValue(group, "beatlooproll_activate", true);
+        } else if (value === 0) {
+            engine.setValue(group, "beatlooproll_activate", false);
+        }
     }
 }
 
