@@ -3,6 +3,36 @@
 
 var MixstreamPro = {};
 
+// Init Hotcue variables - Deck state containers
+MixstreamPro.deck = {
+    1: {
+        blinktimer: 0,
+        hotcuevalue: 0,
+        LEDblink: true,
+        midiStatus: 0x92,
+        channel: "[Channel1]",
+        auxChannel: "[Auxiliary2]",
+        Hotcue_Toggle: true,
+        AutoloopToggle: false,
+        BeatloopRollToggle: false,
+        slipenabledToggle: false,
+        previousJogValue: 0
+    },
+    2: {
+        blinktimer: 0,
+        hotcuevalue: 0,
+        LEDblink: true,
+        midiStatus: 0x93,
+        channel: "[Channel2]",
+        auxChannel: "[Auxiliary1]",
+        Hotcue_Toggle: true,
+        AutoloopToggle: false,
+        BeatloopRollToggle: false,
+        slipenabledToggle: false,
+        previousJogValue: 0
+    }
+};
+
 // Pitch slider Pot components for 14-bit precision
 MixstreamPro.pitchSlider1 = new components.Pot({
     midi: [0xB2, 0x1F],
@@ -122,9 +152,7 @@ MixstreamPro.vuCallback = function (value, group, control) {
             MixstreamPro.prevVuLevelL = level;
         }
 
-    } else
-
-        if (group == '[Master]' && control == 'VuMeterR') {
+    } else if (group == '[Master]' && control == 'VuMeterR') {
             midi.sendShortMsg(0xBF, 0x21, 0x00);
             if (engine.getValue(group, "PeakIndicatorR")) {
                 level = MixstreamPro.maxVuLevel
@@ -163,6 +191,14 @@ MixstreamPro.playAux1 = function (channel, control, value, status, group) {
             }
     }
     if (value === 0) { return }
+}
+
+MixstreamPro.shift = false
+
+MixstreamPro.shiftButton = function (channel, control, value, status, group) {
+    // Note that there is no 'if (value === 127)' 
+    // Therefore, MixstreamPro.shift will only be true while the shift button is held down
+    MixstreamPro.shift = !MixstreamPro.shift; // '!' inverts a boolean (true/false) value
 }
 
 MixstreamPro.playIndicatorCallback1 = function (channel, control, value, status, group) {
@@ -234,36 +270,6 @@ MixstreamPro.JogLSB = function (channel, control, value, status, group) {
     // LSB not used, use on 7 Bits
     return
 };
-
-// Init Hotcue variables - Deck state containers
-MixstreamPro.deck = {
-    1: {
-        blinktimer: 0,
-        hotcuevalue: 0,
-        LEDblink: true,
-        midiStatus: 0x92,
-        channel: "[Channel1]",
-        auxChannel: "[Auxiliary2]",
-        Hotcue_Toggle: true,
-        AutoloopToggle: false,
-        BeatloopRollToggle: false,
-        slipenabledToggle: false,
-        previousJogValue: 0
-    },
-    2: {
-        blinktimer: 0,
-        hotcuevalue: 0,
-        LEDblink: true,
-        midiStatus: 0x93,
-        channel: "[Channel2]",
-        auxChannel: "[Auxiliary1]",
-        Hotcue_Toggle: true,
-        AutoloopToggle: false,
-        BeatloopRollToggle: false,
-        slipenabledToggle: false,
-        previousJogValue: 0
-    }
-}
 
 // Generic track loaded callback - works for both decks
 MixstreamPro.trackLoadedCallback = function (channel, control, value, status, group) {
@@ -534,15 +540,6 @@ MixstreamPro.rollOrSamplerToggle = function (channel, control, value, status, gr
     }
 }
 
-// SHIFT buttons 4 Pads
-MixstreamPro.shift = false
-
-MixstreamPro.shiftButton = function (channel, control, value, status, group) {
-    // Note that there is no 'if (value === 127)' 
-    // Therefore, MixstreamPro.shift will only be true while the shift button is held down
-    MixstreamPro.shift = !MixstreamPro.shift; // '!' inverts a boolean (true/false) value
-}
-
 MixstreamPro.performancePad = function (channel, control, value, status, group) {
     if (value === 0) { return }
     
@@ -653,7 +650,7 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
         if (!effectState.toggle) {
             // Ensure any previous timer is stopped
             if (effectState.blinktimer !== 0) {
-                try { engine.stopTimer(effectState.blinktimer); } catch (e) {}
+                try { engine.stopTimer(effectState.blinktimer); } catch (e) { }
                 effectState.blinktimer = 0;
             }
 
@@ -675,7 +672,7 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
             effectState.toggle = false;
 
             if (effectState.blinktimer !== 0) {
-                try { engine.stopTimer(effectState.blinktimer); } catch (e) {}
+                try { engine.stopTimer(effectState.blinktimer); } catch (e) { }
                 effectState.blinktimer = 0;
             }
 
