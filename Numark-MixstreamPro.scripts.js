@@ -8,6 +8,28 @@ MixstreamPro.settings = {
     hotCueWhilePlaying: true,
 };
 
+// Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
+MixstreamPro.padConfigs = {
+    1: { hotcue: [1, 5], autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
+    2: { hotcue: [2, 6], autoloopBank1: 8, autoloopBank2: 0.5, beatloopRollBank1: 0.1667, beatloopRollBank2: 0.6667, midiLED: 0x10 },
+    3: { hotcue: [3, 7], autoloopBank1: 16, autoloopBank2: 1, beatloopRollBank1: 0.25, beatloopRollBank2: 1, midiLED: 0x11 },
+    4: { hotcue: [4, 8], autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
+};
+
+// TOGGLE EFFECT buttons - Effect state data
+MixstreamPro.effectStates = {
+    1: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x00 },
+    2: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x01 },
+    3: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x02 },
+    4: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x03 }
+}
+
+// Track toggle switch state for each channel (4 = Unit1, 5 = Unit2)
+MixstreamPro.toggleSwitchState = {
+    4: false,  // Channel 4 toggle state
+    5: false   // Channel 5 toggle state
+}
+
 // Init Hotcue variables - Deck state containers
 MixstreamPro.deck = {
     1: {
@@ -546,15 +568,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     let PlayStatus = engine.getValue(group, "play_indicator");
     let padNumber = control - 14; // Pads start at control 15 (0x0F), so Pad1=15, Pad2=16, etc.
 
-    // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
-    let padConfigs = {
-        1: { hotcue: [1, 5], autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
-        2: { hotcue: [2, 6], autoloopBank1: 8, autoloopBank2: 0.5, beatloopRollBank1: 0.1667, beatloopRollBank2: 0.6667, midiLED: 0x10 },
-        3: { hotcue: [3, 7], autoloopBank1: 16, autoloopBank2: 1, beatloopRollBank1: 0.25, beatloopRollBank2: 1, midiLED: 0x11 },
-        4: { hotcue: [4, 8], autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
-    };
-
-    let config = padConfigs[padNumber];
+    let config = MixstreamPro.padConfigs[padNumber];
 
     // HOTCUE MODE
     if (value === 127 && deckState.padModes.hotcue && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
@@ -600,12 +614,6 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     }
 }
 
-// Track toggle switch state for each channel (4 = Unit1, 5 = Unit2)
-MixstreamPro.toggleSwitchState = {
-    4: false,  // Channel 4 toggle state
-    5: false   // Channel 5 toggle state
-}
-
 MixstreamPro.effectToggleSwitch = function (channel, control, value, status, group) {
     // Get effect number based on channel (assuming 4 effects controlled by this)
     // Check enabled states from effectStates
@@ -629,14 +637,6 @@ MixstreamPro.effectToggleSwitch = function (channel, control, value, status, gro
             engine.setValue(effectKey, "enabled", shouldEnable);
         }
     }
-}
-
-// TOGGLE EFFECT buttons - Effect state data
-MixstreamPro.effectStates = {
-    1: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x00 },
-    2: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x01 },
-    3: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x02 },
-    4: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x03 }
 }
 
 // Generic Effect button handler - maps CC -> effect and toggles effect enabled + LED
