@@ -3,6 +3,11 @@
 
 var MixstreamPro = {};
 
+MixstreamPro.settings = {
+    stutterPlayOnShiftPlay: true,
+    hotCueWhilePlaying: true,
+};
+
 // Init Hotcue variables - Deck state containers
 MixstreamPro.deck = {
     1: {
@@ -199,6 +204,25 @@ MixstreamPro.shiftButton = function (channel, control, value, status, group) {
     // Note that there is no 'if (value === 127)' 
     // Therefore, MixstreamPro.shift will only be true while the shift button is held down
     MixstreamPro.shift = !MixstreamPro.shift; // '!' inverts a boolean (true/false) value
+}
+
+// Press and hold Shift and then press this button to “stutter-play” the track from the initial cue point.
+MixstreamPro.play = function (channel, control, value, status, group) {
+    let deckNum = script.deckFromGroup(group);
+    let playStatus = engine.getValue(group, "play_indicator")
+
+    if (value === 0x00) {
+        if (MixstreamPro.shift) {
+            if (MixstreamPro.settings.stutterPlayOnShiftPlay) {
+                engine.setValue(group, "cue_gotoandplay", 1);
+            } else {
+                // A setting is added here for ptraxs preferred behaviour
+                playStatus === 1 ? engine.brake(deckNum, true, 0.7) : engine.softStart(deckNum, true, 3);
+            }
+        } else {
+            playStatus === 1 ? engine.setValue(group, "play", 0) : engine.setValue(group, "play", 1);
+        }
+    }
 }
 
 MixstreamPro.playIndicatorCallback1 = function (channel, control, value, status, group) {
