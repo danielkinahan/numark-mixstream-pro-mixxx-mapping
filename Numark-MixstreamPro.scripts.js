@@ -329,15 +329,17 @@ MixstreamPro.trackLoadedCallback = function (channel, control, value, status, gr
 
     // Check enabled hotcues
     for (let i = 1; i <= 8; i++) {
-        hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
-        if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
-            midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
-            deckState.hotcuevalue = hotcues_enabled;
-        }
+        if (engine.getValue(group, "hotcue_" + i + "_type")) {
+            hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
+            if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
+                midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
+                deckState.hotcuevalue = hotcues_enabled;
+            }
 
-        if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
-            midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
-            deckState.hotcuevalue = hotcues_enabled;
+            if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
+                midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
+                deckState.hotcuevalue = hotcues_enabled;
+            }
         }
     }
 
@@ -356,7 +358,7 @@ MixstreamPro.trackLoadedCallback = function (channel, control, value, status, gr
         });
     }
 
-    if (deckState.hotcuevalue < 4) {
+    if (deckState.hotcuevalue <= 4) {
         midi.sendShortMsg(deckState.midiStatus, 0x0B, 0x7f);
     }
 
@@ -366,6 +368,7 @@ MixstreamPro.trackLoadedCallback = function (channel, control, value, status, gr
     }
 
     deckState.previousJogValue = 0;
+    engine.setValue(group, "loop_remove", true)
     engine.setValue(group, "beatloop_activate", false);
     engine.setValue(group, "beatloop_size", 8);
 }
@@ -396,7 +399,6 @@ MixstreamPro.hotCueOrStemsToggle = function (channel, control, value, status, gr
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
-    let PlayStatus = engine.getValue(group, "play_indicator");
     let trackloaded = engine.getValue(group, "track_loaded");
 
     let hotcues_enabled = 0;
@@ -405,7 +407,7 @@ MixstreamPro.hotCueOrStemsToggle = function (channel, control, value, status, gr
 
     midi.sendShortMsg(status, 0x0C, 0x01);
 
-    if (value === 127 && !PlayStatus && trackloaded) {
+    if (value === 127 && trackloaded) {
         if (deckState.Hotcue_Toggle) {
             deckState.Hotcue_Toggle = false;
 
@@ -417,15 +419,17 @@ MixstreamPro.hotCueOrStemsToggle = function (channel, control, value, status, gr
             deckState.Hotcue_Toggle = true;
 
             for (let i = 1; i <= 8; i++) {
-                hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
-                if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
-                    midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
-                    deckState.hotcuevalue = hotcues_enabled;
-                }
+                if (engine.getValue(group, "hotcue_" + i + "_type")) {
+                    hotcues_enabled += engine.getValue(group, "hotcue_" + i + "_enabled");
+                    if (hotcues_enabled !== 0 && i < 5 && hotcues_enabled !== deckState.hotcuevalue) {
+                        midi.sendShortMsg(deckState.midiStatus, hotcue_Led + hotcues_enabled, 0x7f);
+                        deckState.hotcuevalue = hotcues_enabled;
+                    }
 
-                if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
-                    midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
-                    deckState.hotcuevalue = hotcues_enabled;
+                    if (hotcues_enabled !== 0 && i > 4 && hotcues_enabled !== deckState.hotcuevalue) {
+                        midi.sendShortMsg(deckState.midiStatus, (hotcue_Led + hotcues_enabled) - 4, 0x7f);
+                        deckState.hotcuevalue = hotcues_enabled;
+                    }
                 }
             }
         }
@@ -439,10 +443,9 @@ MixstreamPro.savedLoopToggle = function (channel, control, value, status, group)
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
     let LoopIn = engine.getValue(group, "loop_start_position");
-    let PlayStatus = engine.getValue(group, "play_indicator");
 
     if (LoopIn !== -1) {
-        if (value === 127 && engine.getValue(group, "track_loaded") && PlayStatus) {
+        if (value === 127 && engine.getValue(group, "track_loaded")) {
             if (!engine.getValue(group, "loop_enabled")) {
                 script.triggerControl(group, "reloop_toggle");
                 midi.sendShortMsg(status, 0x0C, 0x7f);
@@ -470,9 +473,8 @@ MixstreamPro.autoLoopToggle = function (channel, control, value, status, group) 
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
-    let PlayStatus = engine.getValue(group, "play_indicator");
 
-    if (value === 127 && PlayStatus) {
+    if (value === 127) {
         if (!deckState.AutoloopToggle) {
             deckState.AutoloopToggle = true;
 
@@ -512,11 +514,10 @@ MixstreamPro.rollOrSamplerToggle = function (channel, control, value, status, gr
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
-    let PlayStatus = engine.getValue(group, "play_indicator");
 
     engine.setValue(group, "beatloop_size", 4);
 
-    if (value === 127 && PlayStatus === 1) {
+    if (value === 127) {
         if (!deckState.BeatloopRollToggle) {
             deckState.BeatloopRollToggle = true;
 
@@ -558,29 +559,31 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
     let padConfigs = {
-        1: { hotcue: [1, 5], autoloop: 0.5, autoloopShift: 0.25, beatloopRoll: 0.25, midiLED: 0x0F },
-        2: { hotcue: [2, 6], autoloop: 2, autoloopShift: 2, beatloopRoll: 0.5, midiLED: 0x10 },
-        3: { hotcue: [3, 7], autoloop: 4, autoloopShift: 4, beatloopRoll: 1, midiLED: 0x11 },
-        4: { hotcue: [4, 8], autoloop: 8, autoloopShift: 8, beatloopRoll: 2, midiLED: 0x12 }
+        1: { hotcue: [1, 5], autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
+        2: { hotcue: [2, 6], autoloopBank1: 8, autoloopBank2: 0.5, beatloopRollBank1: 0.1667, beatloopRollBank2: 0.6667, midiLED: 0x10 },
+        3: { hotcue: [3, 7], autoloopBank1: 16, autoloopBank2: 1, beatloopRollBank1: 0.25, beatloopRollBank2: 1, midiLED: 0x11 },
+        4: { hotcue: [4, 8], autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
     };
 
     let config = padConfigs[padNumber];
 
     // HOTCUE MODE
-    if (value === 127 && deckState.Hotcue_Toggle && !deckState.AutoloopToggle && !PlayStatus) {
+    if (value === 127 && deckState.Hotcue_Toggle && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
         let hotcueNum = MixstreamPro.shift ? config.hotcue[1] : config.hotcue[0];
         engine.setValue(group, "hotcue_" + hotcueNum + "_gotoandstop", 1);
     }
 
+    // SAVED LOOP MODE in the works
+
     // AUTOLOOP MODE
-    if (value === 127 && deckState.AutoloopToggle && PlayStatus) {
+    if (value === 127 && deckState.AutoloopToggle) {
         // Send LED feedback
         for (let i = 1; i <= 4; i++) {
             let ledMsg = (i === padNumber) ? 0x7f : 0x01;
             midi.sendShortMsg(status, (14 + i), ledMsg);
         }
 
-        let loopSize = MixstreamPro.shift ? config.autoloopShift : config.autoloop;
+        let loopSize = MixstreamPro.shift ? config.autoloopBank2 : config.autoloopBank1;
         engine.setValue(group, "beatloop_size", loopSize);
 
         let loopSizeValue = engine.getValue(group, "beatloop_size");
@@ -590,7 +593,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     }
 
     // BEATLOOPROLL MODE
-    if (value === 127 && deckState.BeatloopRollToggle && PlayStatus) {
+    if (value === 127 && deckState.BeatloopRollToggle) {
         // Send LED feedback
         for (let i = 1; i <= 4; i++) {
             let ledMsg = (i === padNumber) ? 0x7f : 0x01;
@@ -598,7 +601,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         }
 
         engine.setValue(group, "loop_end_position", -1);
-        engine.setValue(group, "beatloop_size", config.beatloopRoll);
+        engine.setValue(group, "beatloop_size", config.beatloopRollBank1);
 
         let loopSizeValue = engine.getValue(group, "beatloop_size");
         engine.setValue(group, "beatlooproll_" + loopSizeValue + "_activate", true);
