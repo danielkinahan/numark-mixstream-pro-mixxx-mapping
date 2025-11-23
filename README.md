@@ -3,7 +3,7 @@
 This is a mapping for the [Numark Mixstream Pro](https://www.numark.com/product/mixstream-pro) for Mixxx. Wherever possible I have defaulted to Engine OS behaviour outlined in the user manual. When that was not possible I have used Mixxx default behaviour to model certain functions. This is a collaborative effort with @audministrator who created the first versions of it in [this thread](https://mixxx.discourse.group/t/numark-mixstream-pro-mapping/24858).
 
 ## Issues
-- [ ] Implement sampler mode
+- [ ] Performance pad leds should blink when on the second bank
 - [ ] Implement saved loops
 - [ ] Jog wheels are too sensitive
 - [ ] Pressing one roll pad during another disables both

@@ -45,6 +45,7 @@ MixstreamPro.deck = {
             savedloop: 0,
             autoloop: 0,
             roll: 0,
+            sampler: 0,
         },
         slipenabledToggle: false,
         previousJogValue: 0
@@ -61,6 +62,7 @@ MixstreamPro.deck = {
             savedloop: 0,
             autoloop: 0,
             roll: 0,
+            sampler: 0,
         },
         slipenabledToggle: false,
         previousJogValue: 0
@@ -471,6 +473,21 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: false,
         onActivate: function (group, deckState) { },
         onDeactivate: function (group, deckState) { }
+    },
+    sampler: {
+        ledAddress: 0x0D,
+        requiresTrack: false,
+        onActivate: function (group, deckState) {
+            let samplerBank = deckState.padModes.sampler;
+            for (let i = 1; i <= 4; i++) {
+                let sample = i + (4 * (samplerBank - 1));
+                if (engine.getValue("[Sampler" + sample + "]", "track_loaded")) {
+                    // Turn on LED for loaded sampler
+                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
+                }
+            }
+        },
+        onDeactivate: function (group, deckState) { }
     }
 };
 
@@ -500,23 +517,23 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
             // Turn on the LED for this mode
             midi.sendShortMsg(status, config.ledAddress, 0x7f);
 
-            // Turn off LEDs for pad display (0x0B-0x12)
+            // // Turn off LEDs for pad display (0x0B-0x12)
             for (let i = 0x0B; i <= 0x12; i++) {
                 if (i !== config.ledAddress) {
                     midi.sendShortMsg(status, i, 0x01);
                 }
             }
-
             // Run mode-specific activation
-            config.onActivate(group, padModes);
+            config.onActivate(group, deckState);
         } else if (currentValue === 1) {
             // Toggle to state 2
             padModes[configKey] = 2;
 
-            // Turn off pad LEDs for this mode
+            // // Turn off pad LEDs for this mode
             for (let i = 1; i <= 4; i++) {
                 midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x01);
             }
+            config.onActivate(group, deckState);
         } else {
             // Deactivate this mode
             padModes[configKey] = 0;
@@ -547,7 +564,11 @@ MixstreamPro.toggleAutoloop = function (channel, control, value, status, group) 
 }
 
 MixstreamPro.toggleRollOrSampler = function (channel, control, value, status, group) {
-    MixstreamPro.genericToggle(channel, control, value, status, group, "roll");
+    if (MixstreamPro.shift) {
+        MixstreamPro.genericToggle(channel, control, value, status, group, "sampler");
+    } else {
+        MixstreamPro.genericToggle(channel, control, value, status, group, "roll");
+    }
 }
 
 MixstreamPro.performancePad = function (channel, control, value, status, group) {
@@ -601,6 +622,14 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         } else if (value === 0) {
             engine.setValue(group, "beatlooproll_activate", false);
         }
+    }
+
+    // SAMPLER MODE
+    if (value === 127 && deckState.padModes.sampler) {
+        let sample = padNumber + (4 * (deckState.padModes.sampler - 1));
+        console.log("Triggering sampler " + sample);
+        console.log(deckState.padModes.sampler);
+        engine.setValue("[Sampler" + sample + "]", "cue_gotoandplay", 1);
     }
 }
 
