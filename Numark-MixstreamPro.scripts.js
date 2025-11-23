@@ -144,7 +144,7 @@ MixstreamPro.playAux1 = function (channel, control, value, status, group) {
     if (value === 127) {
         if (MixstreamPro.WIFI == true) {
             engine.setValue("[Auxiliary1]", "master", 1)
-            // engine.setValue("[Auxiliary1]", "pregain", 1)
+            engine.setValue("[Auxiliary1]", "pregain", 0.1)
 
             if (engine.getValue("[Channel1]", "play_indicator") == 1) {
                 engine.setValue("[Auxiliary1]", "orientation", 2)
@@ -158,15 +158,12 @@ MixstreamPro.playAux1 = function (channel, control, value, status, group) {
         } else
             if (MixstreamPro.WIFI == false) {
                 engine.setValue("[Auxiliary1]", "master", 0)
-                //  engine.setValue("[Auxiliary1]", "pregain", 1)
+                 engine.setValue("[Auxiliary1]", "pregain", 0)
                 MixstreamPro.WIFI = true
             }
     }
     if (value === 0) { return }
 }
-
-// // Init Aux Volume Timer
-// MixstreamPro.AUX_volume = 0
 
 MixstreamPro.playIndicatorCallback1 = function (channel, control, value, status, group) {
     engine.setValue("[Auxiliary1]", "orientation", 2)
