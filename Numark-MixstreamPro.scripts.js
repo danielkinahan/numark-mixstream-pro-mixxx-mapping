@@ -6,6 +6,7 @@ var MixstreamPro = {};
 MixstreamPro.settings = {
     stutterPlayOnShiftPlay: true,
     hotCueWhilePlaying: true,
+    enableVUMeter: false, // Produces a lot of MIDI traffic that makes it difficult to debug
 };
 
 // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
@@ -157,26 +158,27 @@ MixstreamPro.vuCallback = function (value, group, control) {
     // Top LED lights up at 0x66
     let level = (value * 70)
     level = Math.ceil(level)
+    let enableVUMeter = MixstreamPro.settings.enableVUMeter;
 
     if (group == '[Master]' && control == 'VuMeterL') {
-        midi.sendShortMsg(0xBF, 0x20, 0x00);
+        enableVUMeter ? midi.sendShortMsg(0xBF, 0x20, 0x00) : null;
         if (engine.getValue(group, "PeakIndicatorL")) {
             level = MixstreamPro.maxVuLevel;
         }
 
         if (MixstreamPro.prevVuLevelL !== level) {
-            midi.sendShortMsg(0xBF, 0x20, level);
+            enableVUMeter ? midi.sendShortMsg(0xBF, 0x20, level) : null;
             MixstreamPro.prevVuLevelL = level;
         }
 
     } else if (group == '[Master]' && control == 'VuMeterR') {
-        midi.sendShortMsg(0xBF, 0x21, 0x00);
+        enableVUMeter ? midi.sendShortMsg(0xBF, 0x21, 0x00) : null;
         if (engine.getValue(group, "PeakIndicatorR")) {
             level = MixstreamPro.maxVuLevel
         }
 
         if (MixstreamPro.prevVuLevelR !== level) {
-            midi.sendShortMsg(0xBF, 0x21, level);
+            enableVUMeter ? midi.sendShortMsg(0xBF, 0x21, level) : null;
             MixstreamPro.prevVuLevelR = level;
         }
     }
@@ -561,7 +563,6 @@ MixstreamPro.toggleRollOrSampler = function (channel, control, value, status, gr
 }
 
 MixstreamPro.performancePad = function (channel, control, value, status, group) {
-    if (value === 0) { return }
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
@@ -571,9 +572,18 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     let config = MixstreamPro.padConfigs[padNumber];
 
     // HOTCUE MODE
-    if (value === 127 && deckState.padModes.hotcue && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
+    if (deckState.padModes.hotcue && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
         let hotcueNum = deckState.padModes.hotcue === 1 ? config.hotcue[0] : config.hotcue[1];
-        engine.setValue(group, "hotcue_" + hotcueNum + "_gotoandstop", 1);
+        if (value === 127) {
+            if (MixstreamPro.shift) {
+                engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
+            } else {
+                engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 1);
+            }
+        } else if (value === 0) {
+            console.log("Hotcue Pad Released");
+            engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 0);
+        }
     }
 
     // SAVED LOOP MODE in the works
