@@ -325,7 +325,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.hotCueOrStemsToggle</key>
+                <key>MixstreamPro.toggleHotCueOrStems</key>
                 <description>cue_goto_toggle1</description>
                 <status>0x92</status>
                 <midino>0x0B</midino>
@@ -335,7 +335,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.hotCueOrStemsToggle</key>
+                <key>MixstreamPro.toggleHotCueOrStems</key>
                 <description>cue_goto_toggle2</description>
                 <status>0x93</status>
                 <midino>0x0B</midino>
@@ -365,7 +365,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.savedLoopToggle</key>
+                <key>MixstreamPro.toggleSavedLoop</key>
                 <description>Deck 1: Saved Loop Toggle</description>
                 <status>0x92</status>
                 <midino>0x0C</midino>
@@ -375,7 +375,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.savedLoopToggle</key>
+                <key>MixstreamPro.toggleSavedLoop</key>
                 <description>Deck 2: Saved Loop Toggle</description>
                 <status>0x93</status>
                 <midino>0x0C</midino>
@@ -405,7 +405,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.rollOrSamplerToggle</key>
+                <key>MixstreamPro.toggleRollOrSampler</key>
                 <description>MIDI Deck1 BeatloopRoll</description>
                 <status>0x92</status>
                 <midino>0x0D</midino>
@@ -415,7 +415,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.rollOrSamplerToggle</key>
+                <key>MixstreamPro.toggleRollOrSampler</key>
                 <description>MIDI Deck2 Effect BeatloopRoll</description>
                 <status>0x93</status>
                 <midino>0x0D</midino>
@@ -425,7 +425,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.autoLoopToggle</key>
+                <key>MixstreamPro.toggleAutoloop</key>
                 <description>MIDI Deck1 Autoloop</description>
                 <status>0x92</status>
                 <midino>0x0E</midino>
@@ -435,7 +435,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.autoLoopToggle</key>
+                <key>MixstreamPro.toggleAutoloop</key>
                 <description>MIDI Deck2 Effect Autoloop</description>
                 <status>0x93</status>
                 <midino>0x0E</midino>
@@ -685,7 +685,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.scratchToggle</key>
+                <key>MixstreamPro.toggleScratch</key>
                 <description>slip_enabled_toggle1</description>
                 <status>0x92</status>
                 <midino>0x23</midino>
@@ -695,7 +695,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.scratchToggle</key>
+                <key>MixstreamPro.toggleScratch</key>
                 <description>slip_enabled_toggle2</description>
                 <status>0x93</status>
                 <midino>0x23</midino>
