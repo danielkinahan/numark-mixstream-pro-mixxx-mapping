@@ -99,17 +99,17 @@ MixstreamPro.init = function (id, debugging) {
 
 function initLEDs() {
     // Turn ON all LEDs
-    engine.beginTimer(1000, function () {
+    engine.beginTimer(250, function () {
         midi.sendShortMsg(0x90, 0x75, 0x7f);
     }, 1);
 
     // Turn OFF all LEDs
-    engine.beginTimer(3000, function () {
+    engine.beginTimer(500, function () {
         midi.sendShortMsg(0x90, 0x75, 0x00);
     }, 1);
 
     // Turn ON some LEDs DECK1
-    engine.beginTimer(4000, function () {
+    engine.beginTimer(750, function () {
         midi.sendShortMsg(0x92, 8, 0x01);
         midi.sendShortMsg(0x92, 9, 0x01);
         midi.sendShortMsg(0x92, 10, 0x01);
@@ -121,7 +121,7 @@ function initLEDs() {
     }, 1);
 
     // Turn ON some LEDs DECK2
-    engine.beginTimer(5000, function () {
+    engine.beginTimer(1000, function () {
         midi.sendShortMsg(0x93, 8, 0x01);
         midi.sendShortMsg(0x93, 9, 0x01);
         midi.sendShortMsg(0x93, 10, 0x01);
@@ -133,7 +133,7 @@ function initLEDs() {
     }, 1);
 
     // Turn ON FX LEDs
-    engine.beginTimer(6000, function () {
+    engine.beginTimer(1250, function () {
         midi.sendShortMsg(0x90, 13, 0x01);
         midi.sendShortMsg(0x91, 13, 0x01);
         midi.sendShortMsg(0x94, 0, 0x01);
@@ -531,14 +531,18 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // AUTOLOOP MODE
     if (value === 127 && deckState.padModes.autoloop) {
-        // Send LED feedback
-        for (let i = 1; i <= 4; i++) {
-            let ledMsg = (i === padNumber) ? 0x7f : 0x01;
-            midi.sendShortMsg(status, (14 + i), ledMsg);
-        }
-
         let loopSize = deckState.padModes.autoloop === 1 ? config.autoloopBank1 : config.autoloopBank2;
         engine.setValue(group, "beatloop_" + loopSize + "_toggle", true);
+        console.log(engine.getValue(group, "beatloop_" + loopSize + "_active"))
+
+        // Send LED feedback
+        for (let i = 1; i <= 4; i++) {
+            if (i === padNumber && engine.getValue(group, "beatloop_" + loopSize + "_enabled")) {
+                midi.sendShortMsg(status, (14 + i), 0x7f);
+            } else {
+                midi.sendShortMsg(status, (14 + i), 0x01);
+            }
+        }
     }
 
     // BEATLOOPROLL MODE
@@ -548,10 +552,10 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         if (value === 127) {
             // Send LED feedback
             engine.setValue(group, "beatlooproll_activate", true);
-            midi.sendShortMsg(status, (14 + padNumber), 0x7f); ``
+            midi.sendShortMsg(status, control, 0x7f); ``
         } else if (value === 0) {
             engine.setValue(group, "beatlooproll_activate", false);
-            midi.sendShortMsg(status, (14 + padNumber), 0x01);
+            midi.sendShortMsg(status, control, 0x01);
         }
     }
 
