@@ -11,10 +11,10 @@ MixstreamPro.settings = {
 
 // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
 MixstreamPro.padConfigs = {
-    1: { hotcue: [1, 5], autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
-    2: { hotcue: [2, 6], autoloopBank1: 8, autoloopBank2: 0.5, beatloopRollBank1: 0.1667, beatloopRollBank2: 0.6667, midiLED: 0x10 },
-    3: { hotcue: [3, 7], autoloopBank1: 16, autoloopBank2: 1, beatloopRollBank1: 0.25, beatloopRollBank2: 1, midiLED: 0x11 },
-    4: { hotcue: [4, 8], autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
+    1: { autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
+    2: { autoloopBank1: 8, autoloopBank2: 0.5, beatloopRollBank1: 0.1667, beatloopRollBank2: 0.6667, midiLED: 0x10 },
+    3: { autoloopBank1: 16, autoloopBank2: 1, beatloopRollBank1: 0.25, beatloopRollBank2: 1, midiLED: 0x11 },
+    4: { autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
 };
 
 // TOGGLE EFFECT buttons - Effect state data
@@ -513,12 +513,14 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // HOTCUE MODE
     if (deckState.padModes.hotcue && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
-        let hotcueNum = deckState.padModes.hotcue === 1 ? config.hotcue[0] : config.hotcue[1];
+        let hotcueNum = padNumber + (4 * (deckState.padModes.hotcue - 1));
         if (value === 127) {
             if (MixstreamPro.shift) {
                 engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
+                midi.sendShortMsg(deckState.midiStatus, control, 0x01);
             } else {
                 engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 1);
+                midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
             }
         } else if (value === 0) {
             engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 0);
