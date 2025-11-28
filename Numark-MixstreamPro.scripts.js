@@ -37,15 +37,6 @@ const LED_ADDR = {
     PAD_MODE_4: 18
 };
 
-// Pad index helpers: convert pad number (1-4) to CC offset and hotcue/loop index
-function padIndexToCC(padNumber) {
-    return 14 + padNumber;  // Pads start at CC 15 for pad 1
-}
-
-function hotcueIndex(padNumber, bank) {
-    return padNumber + (4 * (bank - 1));
-}
-
 // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
 MixstreamPro.padConfigs = {
     1: { autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
@@ -54,21 +45,6 @@ MixstreamPro.padConfigs = {
     4: { autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
 };
 
-// Helper utilities for LED and timer safety
-function ledOn(status, cc) {
-    try { midi.sendShortMsg(status, cc, 0x7f); } catch (e) { }
-}
-
-function ledOff(status, cc) {
-    try { midi.sendShortMsg(status, cc, 0x00); } catch (e) { }
-}
-
-function ledDim(status, cc) {
-    try { midi.sendShortMsg(status, cc, 0x01); } catch (e) { }
-}
-
-
-
 // TOGGLE EFFECT buttons - Effect state data
 // Blink timer holds the engine timer ID, LEDblink tracks current LED state, midiCC is the CC number for the effect button
 MixstreamPro.effectStates = {
@@ -76,12 +52,6 @@ MixstreamPro.effectStates = {
     2: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x01 },
     3: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x02 },
     4: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x03 }
-}
-
-// Track toggle switch state for each channel (4 = Unit1, 5 = Unit2)
-MixstreamPro.toggleSwitchState = {
-    4: false,  // Channel 4 toggle state
-    5: false   // Channel 5 toggle state
 }
 
 // Init Hotcue variables - Deck state containers
@@ -100,7 +70,12 @@ MixstreamPro.deck = {
             sampler: 0,
         },
         slipenabledToggle: false,
-        previousJogValue: 0
+        effectToggle: false,
+        previousJogValue: 0,
+        pitchSlider: new components.Pot({
+            group: '[Channel1]',
+            inKey: 'rate'
+        }),
     },
     2: {
         blinktimer: 0,
@@ -116,22 +91,14 @@ MixstreamPro.deck = {
             sampler: 0,
         },
         slipenabledToggle: false,
-        previousJogValue: 0
+        effectToggle: false,
+        previousJogValue: 0,
+        pitchSlider: new components.Pot({
+            group: '[Channel2]',
+            inKey: 'rate'
+        }),
     }
 };
-
-// Pitch slider Pot components for 14-bit precision
-MixstreamPro.pitchSlider1 = new components.Pot({
-    midi: [0xB2, 0x1F],
-    group: '[Channel1]',
-    inKey: 'rate'
-});
-
-MixstreamPro.pitchSlider2 = new components.Pot({
-    midi: [0xB3, 0x1F],
-    group: '[Channel2]',
-    inKey: 'rate'
-});
 
 MixstreamPro.init = function (id, debugging) {
     // Init Callbacks
@@ -147,6 +114,27 @@ MixstreamPro.init = function (id, debugging) {
 
     // Init LEDs
     initLEDs()
+}
+
+// Helper utilities for LED and timer safety
+function ledOn(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x7f); } catch (e) { }
+}
+
+function ledOff(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x00); } catch (e) { }
+}
+
+function ledDim(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x01); } catch (e) { }
+}
+// Pad index helpers: convert pad number (1-4) to CC offset and hotcue/loop index
+function padIndexToCC(padNumber) {
+    return 14 + padNumber;  // Pads start at CC 15 for pad 1
+}
+
+function hotcueIndex(padNumber, bank) {
+    return padNumber + (4 * (bank - 1));
 }
 
 function initLEDs() {
@@ -662,7 +650,8 @@ MixstreamPro.effectToggleSwitch = function (channel, control, value, status, gro
 
     // Determine if toggle is ON (value 1 or 2)
     let toggleIsOn = (value === 1 || value === 2);
-    MixstreamPro.toggleSwitchState[channel] = toggleIsOn;
+    let deck = channel - 3;
+    MixstreamPro.deck[deck].effectToggle = toggleIsOn;
 
     if (channel === 4) {
         for (let i = 1; i <= 3; i++) {
@@ -725,9 +714,9 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
 
         // After toggling the effect button, trigger the toggle switches to re-evaluate
         // This ensures the effect is applied/removed based on current toggle switch state
-        let channel4Value = MixstreamPro.toggleSwitchState[4] ? 1 : 0;
-        let channel5Value = MixstreamPro.toggleSwitchState[5] ? 1 : 0;
-        MixstreamPro.effectToggleSwitch(4, null, channel4Value, null, null);
-        MixstreamPro.effectToggleSwitch(5, null, channel5Value, null, null);
+        let deck1Value = MixstreamPro.deck[1].effectToggle ? 1 : 0;
+        let deck2Value = MixstreamPro.deck[2].effectToggle ? 1 : 0;
+        MixstreamPro.effectToggleSwitch(4, null, deck1Value, null, null);
+        MixstreamPro.effectToggleSwitch(5, null, deck2Value, null, null);
     }
 }

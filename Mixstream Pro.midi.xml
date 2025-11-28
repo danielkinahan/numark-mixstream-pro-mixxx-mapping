@@ -624,7 +624,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.pitchSlider1.inputMSB</key>
+                <key>MixstreamPro.deck[1].pitchSlider.inputMSB</key>
                 <description>Pitch Slider Channel 1 (Coarse)</description>
                 <status>0xB2</status>
                 <midino>0x1F</midino>
@@ -634,7 +634,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.pitchSlider2.inputMSB</key>
+                <key>MixstreamPro.deck[2].pitchSlider.inputMSB</key>
                 <description>Pitch Slider Channel 2 (Coarse)</description>
                 <status>0xB3</status>
                 <midino>0x1F</midino>
@@ -644,7 +644,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.pitchSlider1.inputLSB</key>
+                <key>MixstreamPro.deck[1].pitchSlider.inputLSB</key>
                 <description>Pitch Slider Channel 1 (Fine)</description>
                 <status>0xB2</status>
                 <midino>0x4B</midino>
@@ -654,7 +654,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.pitchSlider2.inputLSB</key>
+                <key>MixstreamPro.deck[2].pitchSlider.inputLSB</key>
                 <description>Pitch Slider Channel 2 (Fine)</description>
                 <status>0xB3</status>
                 <midino>0x4B</midino>
