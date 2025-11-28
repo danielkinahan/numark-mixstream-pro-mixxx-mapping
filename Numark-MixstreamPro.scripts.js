@@ -6,8 +6,45 @@ var MixstreamPro = {};
 MixstreamPro.settings = {
     stutterPlayOnShiftPlay: true,
     hotCueWhilePlaying: true,
-    enableVUMeter: false, // Produces a lot of MIDI traffic that makes it difficult to debug
+    enableVUMeter: true, // Produces a lot of MIDI traffic that makes it difficult to debug
 };
+
+// MIDI constants
+const MIDI_STATUS = {
+    GENERAL: 0x90,
+    DECK1: 0x92,
+    DECK2: 0x93,
+    FX: 0x94,
+    VU_BASE: 0xBF
+};
+
+const MIDI_CC = {
+    INIT_ALL: 0x75,
+    VU_L: 0x20,
+    VU_R: 0x21
+};
+
+// LED address constants for pad modes
+const LED_ADDR = {
+    HOTCUE: 0x0B,
+    SAVEDLOOP: 0x0C,
+    BEATLOOPROLL: 0x0D,
+    AUTOLOOP: 0x0E,
+    SLIP: 0x23,
+    PAD_MODE_1: 15,
+    PAD_MODE_2: 16,
+    PAD_MODE_3: 17,
+    PAD_MODE_4: 18
+};
+
+// Pad index helpers: convert pad number (1-4) to CC offset and hotcue/loop index
+function padIndexToCC(padNumber) {
+    return 14 + padNumber;  // Pads start at CC 15 for pad 1
+}
+
+function hotcueIndex(padNumber, bank) {
+    return padNumber + (4 * (bank - 1));
+}
 
 // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
 MixstreamPro.padConfigs = {
@@ -17,8 +54,23 @@ MixstreamPro.padConfigs = {
     4: { autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
 };
 
+// Helper utilities for LED and timer safety
+function ledOn(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x7f); } catch (e) { }
+}
+
+function ledOff(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x00); } catch (e) { }
+}
+
+function ledDim(status, cc) {
+    try { midi.sendShortMsg(status, cc, 0x01); } catch (e) { }
+}
+
+
+
 // TOGGLE EFFECT buttons - Effect state data
-// Blink timer holds the engine timer ID, LEDblink tracks current LED state, midiCC is the CC number for the effect butto
+// Blink timer holds the engine timer ID, LEDblink tracks current LED state, midiCC is the CC number for the effect button
 MixstreamPro.effectStates = {
     1: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x00 },
     2: { toggle: false, blinktimer: 0, LEDblink: true, midiCC: 0x01 },
@@ -84,14 +136,14 @@ MixstreamPro.pitchSlider2 = new components.Pot({
 MixstreamPro.init = function (id, debugging) {
     // Init Callbacks
     // VuMeters
-    engine.makeConnection("[Master]", "VuMeterL", MixstreamPro.vuCallback);
-    engine.makeConnection("[Master]", "VuMeterR", MixstreamPro.vuCallback);
+    engine.makeConnection("[Main]", "vu_meter_left", MixstreamPro.vuCallback);
+    engine.makeConnection("[Main]", "vu_meter_right", MixstreamPro.vuCallback);
     // TrackLoaded
     engine.makeConnection("[Channel1]", "track_loaded", MixstreamPro.trackLoadedCallback);
     engine.makeConnection("[Channel2]", "track_loaded", MixstreamPro.trackLoadedCallback);
     // TrackPlaying
-    engine.makeConnection("[Channel1]", "play_indicator", MixstreamPro.playIndicatorCallback11);
-    engine.makeConnection("[Channel2]", "play_indicator", MixstreamPro.playIndicatorCallback12);
+    engine.makeConnection("[Channel1]", "play_indicator", MixstreamPro.playIndicatorCallback1);
+    engine.makeConnection("[Channel2]", "play_indicator", MixstreamPro.playIndicatorCallback2);
 
     // Init LEDs
     initLEDs()
@@ -100,53 +152,65 @@ MixstreamPro.init = function (id, debugging) {
 function initLEDs() {
     // Turn ON all LEDs
     engine.beginTimer(250, function () {
-        midi.sendShortMsg(0x90, 0x75, 0x7f);
+        ledOn(0x90, 0x75);
     }, 1);
 
     // Turn OFF all LEDs
     engine.beginTimer(500, function () {
-        midi.sendShortMsg(0x90, 0x75, 0x00);
+        ledOff(0x90, 0x75);
     }, 1);
 
     // Turn ON some LEDs DECK1
     engine.beginTimer(750, function () {
-        midi.sendShortMsg(0x92, 8, 0x01);
-        midi.sendShortMsg(0x92, 9, 0x01);
-        midi.sendShortMsg(0x92, 10, 0x01);
-        midi.sendShortMsg(0x92, 11, 0x01);
-        midi.sendShortMsg(0x92, 12, 0x01);
-        midi.sendShortMsg(0x92, 13, 0x01);
-        midi.sendShortMsg(0x92, 14, 0x01);
-        midi.sendShortMsg(0x92, 35, 0x01);
+        for (var cc = 8; cc <= 14; cc++) { ledDim(0x92, cc); }
+        ledDim(0x92, 35);
     }, 1);
 
     // Turn ON some LEDs DECK2
     engine.beginTimer(1000, function () {
-        midi.sendShortMsg(0x93, 8, 0x01);
-        midi.sendShortMsg(0x93, 9, 0x01);
-        midi.sendShortMsg(0x93, 10, 0x01);
-        midi.sendShortMsg(0x93, 11, 0x01);
-        midi.sendShortMsg(0x93, 12, 0x01);
-        midi.sendShortMsg(0x93, 13, 0x01);
-        midi.sendShortMsg(0x93, 14, 0x01);
-        midi.sendShortMsg(0x93, 35, 0x01);
+        for (var cc = 8; cc <= 14; cc++) { ledDim(0x93, cc); }
+        ledDim(0x93, 35);
     }, 1);
 
     // Turn ON FX LEDs
     engine.beginTimer(1250, function () {
-        midi.sendShortMsg(0x90, 13, 0x01);
-        midi.sendShortMsg(0x91, 13, 0x01);
-        midi.sendShortMsg(0x94, 0, 0x01);
-        midi.sendShortMsg(0x94, 1, 0x01);
-        midi.sendShortMsg(0x94, 2, 0x01);
-        midi.sendShortMsg(0x94, 3, 0x01);
+        ledDim(0x90, 13);
+        ledDim(0x91, 13);
+        ledDim(0x94, 0);
+        ledDim(0x94, 1);
+        ledDim(0x94, 2);
+        ledDim(0x94, 3);
     }, 1);
 }
 
 // Turn OFF ALL LEDs at SHUTDOWN
 MixstreamPro.shutdown = function () {
-    // turn off all LEDs Deck1 / Deck2
-    midi.sendShortMsg(0x90, 0x75, 0x00);
+    // Stop deck blink timers and turn off LEDs for decks
+    Object.keys(MixstreamPro.deck).forEach(function (dn) {
+        var ds = MixstreamPro.deck[dn];
+        if (ds && ds.blinktimer) {
+            engine.stopTimer(ds.blinktimer);
+            ds.blinktimer = 0;
+        }
+        // try to turn off common pad LEDs for the deck
+        try {
+            for (var cc = 8; cc <= 14; cc++) { ledOff(ds.midiStatus, cc); }
+            ledOff(ds.midiStatus, 35);
+        } catch (e) { }
+    });
+
+    // Stop effect blink timers and turn off effect LEDs
+    Object.keys(MixstreamPro.effectStates).forEach(function (k) {
+        var es = MixstreamPro.effectStates[k];
+        if (es && es.blinktimer) {
+            engine.stopTimer(es.blinktimer);
+            es.blinktimer = 0;
+        }
+        try { ledDim(MIDI_STATUS.FX, es.midiCC); } catch (e) { }
+    });
+
+    // Fallback: general LED off
+    try { ledOff(MIDI_STATUS.GENERAL, MIDI_CC.INIT_ALL); } catch (e) { }
 }
 
 // Init VU Meter variables
@@ -161,25 +225,25 @@ MixstreamPro.vuCallback = function (value, group, control) {
     level = Math.ceil(level)
     let enableVUMeter = MixstreamPro.settings.enableVUMeter;
 
-    if (group == '[Master]' && control == 'VuMeterL') {
-        enableVUMeter ? midi.sendShortMsg(0xBF, 0x20, 0x00) : null;
-        if (engine.getValue(group, "PeakIndicatorL")) {
+    if (group == '[Main]' && control == 'vu_meter_left') {
+        if (enableVUMeter) midi.sendShortMsg(MIDI_STATUS.VU_BASE, MIDI_CC.VU_L, 0x00);
+        if (engine.getValue(group, "peak_indicator_left")) {
             level = MixstreamPro.maxVuLevel;
         }
 
         if (MixstreamPro.prevVuLevelL !== level) {
-            enableVUMeter ? midi.sendShortMsg(0xBF, 0x20, level) : null;
+            if (enableVUMeter) midi.sendShortMsg(MIDI_STATUS.VU_BASE, MIDI_CC.VU_L, level);
             MixstreamPro.prevVuLevelL = level;
         }
 
-    } else if (group == '[Master]' && control == 'VuMeterR') {
-        enableVUMeter ? midi.sendShortMsg(0xBF, 0x21, 0x00) : null;
-        if (engine.getValue(group, "PeakIndicatorR")) {
+    } else if (group == '[Main]' && control == 'vu_meter_right') {
+        if (enableVUMeter) midi.sendShortMsg(MIDI_STATUS.VU_BASE, MIDI_CC.VU_R, 0x00);
+        if (engine.getValue(group, "peak_indicator_right")) {
             level = MixstreamPro.maxVuLevel
         }
 
         if (MixstreamPro.prevVuLevelR !== level) {
-            enableVUMeter ? midi.sendShortMsg(0xBF, 0x21, level) : null;
+            if (enableVUMeter) midi.sendShortMsg(MIDI_STATUS.VU_BASE, MIDI_CC.VU_R, level);
             MixstreamPro.prevVuLevelR = level;
         }
     }
@@ -216,9 +280,8 @@ MixstreamPro.playAux1 = function (channel, control, value, status, group) {
 MixstreamPro.shift = false
 
 MixstreamPro.shiftButton = function (channel, control, value, status, group) {
-    // Note that there is no 'if (value === 127)' 
-    // Therefore, MixstreamPro.shift will only be true while the shift button is held down
-    MixstreamPro.shift = !MixstreamPro.shift; // '!' inverts a boolean (true/false) value
+    // Set shift explicitly: true while held (value 127), false on release (value 0)
+    MixstreamPro.shift = (value === 127);
 }
 
 // Press and hold Shift and then press this button to “stutter-play” the track from the initial cue point.
@@ -323,21 +386,21 @@ MixstreamPro.trackLoadedCallback = function (value, group, control) {
 
     // AUX channel SPOTIFY Helper
     if (!engine.getValue(group, "track_loaded") && !engine.getValue(otherChannel, "track_loaded")) {
-        midi.sendShortMsg(deckState.midiStatus, 0x0E, 0x7f);
-        midi.sendShortMsg(deckState.midiStatus, 0x0F, 0x7f);
-        midi.sendShortMsg(deckState.midiStatus, 0x10, 0x7f);
-        midi.sendShortMsg(deckState.midiStatus, 0x11, 0x7f);
-        midi.sendShortMsg(deckState.midiStatus, 0x12, 0x7f);
+        ledOn(deckState.midiStatus, 0x0E);
+        ledOn(deckState.midiStatus, 0x0F);
+        ledOn(deckState.midiStatus, 0x10);
+        ledOn(deckState.midiStatus, 0x11);
+        ledOn(deckState.midiStatus, 0x12);
     } else if (engine.getValue(group, "track_loaded") && !engine.getValue(otherChannel, "play_indicator")) {
         engine.setValue(deckState.auxChannel, "orientation", deckNum === 1 ? 2 : 0);
     } else if (engine.getValue(group, "track_loaded") && engine.getValue(otherChannel, "play_indicator")) {
         engine.setValue(deckState.auxChannel, "orientation", deckNum === 1 ? 0 : 2);
     }
 
-    midi.sendShortMsg(deckState.midiStatus, 11, 0x01);
-    midi.sendShortMsg(deckState.midiStatus, 12, 0x01);
-    midi.sendShortMsg(deckState.midiStatus, 13, 0x01);
-    midi.sendShortMsg(deckState.midiStatus, 14, 0x01);
+    ledDim(deckState.midiStatus, 11);
+    ledDim(deckState.midiStatus, 12);
+    ledDim(deckState.midiStatus, 13);
+    ledDim(deckState.midiStatus, 14);
 
     deckState.previousJogValue = 0;
 }
@@ -352,11 +415,11 @@ MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
 
         if (!deckState.slipenabledToggle) {
             engine.setValue(group, "slip_enabled", true);
-            midi.sendShortMsg(status, 0x23, 0x7f);
+            ledOn(status, LED_ADDR.SLIP);
             deckState.slipenabledToggle = true;
         } else {
             engine.setValue(group, "slip_enabled", false);
-            midi.sendShortMsg(status, 0x23, 0x01);
+            ledDim(status, LED_ADDR.SLIP);
             deckState.slipenabledToggle = false;
         }
     }
@@ -365,45 +428,45 @@ MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
 // Toggle mode configurations: defines which toggle, LED address, and other toggles to reset
 MixstreamPro.padModeConfigs = {
     hotcue: {
-        ledAddress: 0x0B,
+        ledAddress: LED_ADDR.HOTCUE,
         requiresTrack: true,
         onActivate: function (group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                hotcueNum = i + (deckState.padModes.hotcue === 1 ? 0 : 4);
-                if (engine.getValue(group, "hotcue_" + hotcueNum + "_type") === 4) {
-                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x00);
-                } else if (engine.getValue(group, "hotcue_" + hotcueNum + "_status")) {
-                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
+                let cueNum = hotcueIndex(i, deckState.padModes.hotcue);
+                if (engine.getValue(group, "hotcue_" + cueNum + "_type") === 4) {
+                    ledOff(deckState.midiStatus, padIndexToCC(i));
+                } else if (engine.getValue(group, "hotcue_" + cueNum + "_status")) {
+                    ledOn(deckState.midiStatus, padIndexToCC(i));
                 }
             }
         }
     },
     savedloop: {
-        ledAddress: 0x0C,
+        ledAddress: LED_ADDR.SAVEDLOOP,
         requiresTrack: true,
         onActivate: function (group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                loopNum = i + (deckState.padModes.savedloop === 1 ? 0 : 4);
+                let loopNum = hotcueIndex(i, deckState.padModes.savedloop);
                 if (engine.getValue(group, "hotcue_" + loopNum + "_type") === 1) {
-                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x00);
+                    ledOff(deckState.midiStatus, padIndexToCC(i));
                 } else if (engine.getValue(group, "hotcue_" + loopNum + "_status")) {
-                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
+                    ledOn(deckState.midiStatus, padIndexToCC(i));
                 }
             }
         }
     },
     autoloop: {
-        ledAddress: 0x0E,
+        ledAddress: LED_ADDR.AUTOLOOP,
         requiresTrack: false,
         onActivate: function (group, deckState) { }
     },
     roll: {
-        ledAddress: 0x0D,
+        ledAddress: LED_ADDR.BEATLOOPROLL,
         requiresTrack: false,
         onActivate: function (group, deckState) { }
     },
     sampler: {
-        ledAddress: 0x0D,
+        ledAddress: LED_ADDR.HOTCUE,
         requiresTrack: false,
         onActivate: function (group, deckState) {
             let samplerBank = deckState.padModes.sampler;
@@ -411,7 +474,7 @@ MixstreamPro.padModeConfigs = {
                 let sample = i + (4 * (samplerBank - 1));
                 if (engine.getValue("[Sampler" + sample + "]", "track_loaded")) {
                     // Turn on LED for loaded sampler
-                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
+                    ledOn(deckState.midiStatus, padIndexToCC(i));
                 }
             }
         }
@@ -419,8 +482,27 @@ MixstreamPro.padModeConfigs = {
 };
 
 // Generic toggle handler for mode switching
-MixstreamPro.genericToggle = function (channel, control, value, status, group, configKey) {
+MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
     if (value === 0) { return }
+
+    let configKey;
+
+    switch (control) {
+        case 11:
+            configKey = "hotcue";
+            break;
+        case 12:
+            configKey = "savedloop";
+            break;
+        case 13:
+            MixstreamPro.shift ? configKey = "sampler" : configKey = "roll";
+            break;
+        case 14:
+            configKey = "autoloop";
+            break;
+        default:
+            return; // Invalid control for this function
+    }
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
@@ -428,10 +510,11 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
     let config = MixstreamPro.padModeConfigs[configKey];
 
     if (value === 127 && (!config.requiresTrack || engine.getValue(group, "track_loaded"))) {
-        midi.sendShortMsg(deckState.midiStatus, 15, 0x01);
-        midi.sendShortMsg(deckState.midiStatus, 16, 0x01);
-        midi.sendShortMsg(deckState.midiStatus, 17, 0x01);
-        midi.sendShortMsg(deckState.midiStatus, 18, 0x01);
+        // Dim the pad-mode indicator LEDs before mode change
+        ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_1);
+        ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_2);
+        ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_3);
+        ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_4);
 
         let currentValue = padModes[configKey];
         let isActive = currentValue !== 0 && currentValue !== false;
@@ -446,9 +529,9 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
             // Activate this mode, set to 1
             padModes[configKey] = 1;
 
-            // // Turn off other mode LEDs
+            // Turn off (dim) other mode LEDs
             Object.keys(MixstreamPro.padModeConfigs).forEach(key => {
-                midi.sendShortMsg(status, MixstreamPro.padModeConfigs[key].ledAddress, 0x01);
+                ledDim(status, MixstreamPro.padModeConfigs[key].ledAddress);
             });
 
             if (deckState.blinktimer) {
@@ -457,47 +540,26 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
             }
 
             // Turn on the LED for this mode
-            midi.sendShortMsg(status, config.ledAddress, 0x7f);
+            ledOn(status, config.ledAddress);
             config.onActivate(group, deckState);
         } else if (currentValue === 1) {
             // Toggle to state 2
             padModes[configKey] = 2;
 
             // It makes no sense to have the LED tracked in the deckstate for the padmode config but whatever
-            midi.sendShortMsg(status, config.ledAddress, 0x01);
+            ledDim(status, config.ledAddress);
             deckState.blinktimer = engine.beginTimer(500, function () {
                 if (deckState.LEDblink) {
-                    midi.sendShortMsg(status, config.ledAddress, 0x7F);
+                    ledOn(status, config.ledAddress);
                     deckState.LEDblink = false;
                 } else {
-                    midi.sendShortMsg(status, config.ledAddress, 0x01);
+                    ledDim(status, config.ledAddress);
                     deckState.LEDblink = true;
                 }
             });
 
             config.onActivate(group, deckState);
         }
-    }
-}
-
-// Mode toggle wrappers for each control
-MixstreamPro.toggleHotCueOrStems = function (channel, control, value, status, group) {
-    MixstreamPro.genericToggle(channel, control, value, status, group, "hotcue");
-}
-
-MixstreamPro.toggleSavedLoop = function (channel, control, value, status, group) {
-    MixstreamPro.genericToggle(channel, control, value, status, group, "savedloop");
-}
-
-MixstreamPro.toggleAutoloop = function (channel, control, value, status, group) {
-    MixstreamPro.genericToggle(channel, control, value, status, group, "autoloop");
-}
-
-MixstreamPro.toggleRollOrSampler = function (channel, control, value, status, group) {
-    if (MixstreamPro.shift) {
-        MixstreamPro.genericToggle(channel, control, value, status, group, "sampler");
-    } else {
-        MixstreamPro.genericToggle(channel, control, value, status, group, "roll");
     }
 }
 
@@ -518,10 +580,10 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
             if (value === 127) {
                 if (MixstreamPro.shift) {
                     engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
-                    midi.sendShortMsg(deckState.midiStatus, control, 0x01);
+                    ledDim(deckState.midiStatus, control);
                 } else {
                     engine.setValue(group, "hotcue_" + hotcueNum + "_activatecue", 1);
-                    midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
+                    ledOn(deckState.midiStatus, control);
                 }
             } else if (value === 0) {
                 engine.setValue(group, "hotcue_" + hotcueNum + "_activatecue", 0);
@@ -531,13 +593,13 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // SAVEDLOOP MODE
     if (deckState.padModes.savedloop) {
-        let loopNum = padNumber + (4 * (deckState.padModes.savedloop - 1));
+        let loopNum = hotcueIndex(padNumber, deckState.padModes.savedloop);
         // Only set if not a hotcue
         if (engine.getValue(group, "hotcue_" + loopNum + "_type") != 1) {
             if (value === 127) {
                 if (MixstreamPro.shift) {
                     engine.setValue(group, "hotcue_" + loopNum + "_clear", 1);
-                    midi.sendShortMsg(deckState.midiStatus, control, 0x01);
+                    ledDim(deckState.midiStatus, control);
                 } else {
                     if (engine.getValue(group, "hotcue_" + loopNum + "_type")) {
                         engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
@@ -549,7 +611,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
                         engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
                         engine.setValue(group, "loop_in", 0);
                         // engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
-                        midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
+                        ledOn(deckState.midiStatus, control);
                     }
                 }
             } else if (value === 0) {
@@ -566,9 +628,9 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         // Send LED feedback
         for (let i = 1; i <= 4; i++) {
             if (i === padNumber && engine.getValue(group, "beatloop_" + loopSize + "_enabled")) {
-                midi.sendShortMsg(status, (14 + i), 0x7f);
+                ledOn(status, padIndexToCC(i));
             } else {
-                midi.sendShortMsg(status, (14 + i), 0x01);
+                ledDim(status, padIndexToCC(i));
             }
         }
     }
@@ -580,10 +642,10 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         if (value === 127) {
             // Send LED feedback
             engine.setValue(group, "beatlooproll_activate", true);
-            midi.sendShortMsg(status, control, 0x7f); ``
+            ledOn(status, control);
         } else if (value === 0) {
             engine.setValue(group, "beatlooproll_activate", false);
-            midi.sendShortMsg(status, control, 0x01);
+            ledDim(status, control);
         }
     }
 
@@ -631,7 +693,7 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
         if (!effectState.toggle) {
             // Ensure any previous timer is stopped
             if (effectState.blinktimer !== 0) {
-                try { engine.stopTimer(effectState.blinktimer); } catch (e) { }
+                engine.stopTimer(effectState.blinktimer);
                 effectState.blinktimer = 0;
             }
 
@@ -641,10 +703,10 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
             let midiCC = effectState.midiCC;
             effectState.blinktimer = engine.beginTimer(500, function () {
                 if (effectStateRef.LEDblink) {
-                    midi.sendShortMsg(0x94, midiCC, 0x7F);
+                    ledOn(MIDI_STATUS.FX, midiCC);
                     effectStateRef.LEDblink = false;
                 } else {
-                    midi.sendShortMsg(0x94, midiCC, 0x01);
+                    ledDim(MIDI_STATUS.FX, midiCC);
                     effectStateRef.LEDblink = true;
                 }
             });
@@ -653,12 +715,12 @@ MixstreamPro.effectButton = function (channel, control, value, status, group) {
             effectState.toggle = false;
 
             if (effectState.blinktimer !== 0) {
-                try { engine.stopTimer(effectState.blinktimer); } catch (e) { }
+                engine.stopTimer(effectState.blinktimer);
                 effectState.blinktimer = 0;
             }
 
             // Ensure LED shows off state
-            midi.sendShortMsg(0x94, effectState.midiCC, 0x01);
+            ledDim(MIDI_STATUS.FX, effectState.midiCC);
         }
 
         // After toggling the effect button, trigger the toggle switches to re-evaluate

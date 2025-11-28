@@ -5,7 +5,6 @@
     </info>
     <controller id="MixstreamPro">
         <scriptfiles>
-            <file filename="lodash.mixxx.js"/>
             <file filename="midi-components-0.0.js"/>
             <file functionprefix="MixstreamPro" filename="Numark-MixstreamPro.scripts.js"/>
         </scriptfiles>
@@ -325,8 +324,8 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.toggleHotCueOrStems</key>
-                <description>cue_goto_toggle1</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 1: Hotcue Toggle Button</description>
                 <status>0x92</status>
                 <midino>0x0B</midino>
                 <options>
@@ -335,8 +334,8 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.toggleHotCueOrStems</key>
-                <description>cue_goto_toggle2</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 2: Hotcue Toggle Button</description>
                 <status>0x93</status>
                 <midino>0x0B</midino>
                 <options>
@@ -365,7 +364,7 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.toggleSavedLoop</key>
+                <key>MixstreamPro.togglePadMode</key>
                 <description>Deck 1: Saved Loop Toggle</description>
                 <status>0x92</status>
                 <midino>0x0C</midino>
@@ -375,7 +374,7 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.toggleSavedLoop</key>
+                <key>MixstreamPro.togglePadMode</key>
                 <description>Deck 2: Saved Loop Toggle</description>
                 <status>0x93</status>
                 <midino>0x0C</midino>
@@ -405,8 +404,8 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.toggleRollOrSampler</key>
-                <description>MIDI Deck1 BeatloopRoll</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 1: Roll toggle button</description>
                 <status>0x92</status>
                 <midino>0x0D</midino>
                 <options>
@@ -415,8 +414,8 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.toggleRollOrSampler</key>
-                <description>MIDI Deck2 Effect BeatloopRoll</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 2: Roll toggle button</description>
                 <status>0x93</status>
                 <midino>0x0D</midino>
                 <options>
@@ -425,8 +424,8 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.toggleAutoloop</key>
-                <description>MIDI Deck1 Autoloop</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 1: Autoloop toggle button</description>
                 <status>0x92</status>
                 <midino>0x0E</midino>
                 <options>
@@ -435,8 +434,8 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.toggleAutoloop</key>
-                <description>MIDI Deck2 Effect Autoloop</description>
+                <key>MixstreamPro.togglePadMode</key>
+                <description>Deck 2: Autoloop toggle button</description>
                 <status>0x93</status>
                 <midino>0x0E</midino>
                 <options>
