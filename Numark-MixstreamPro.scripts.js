@@ -370,34 +370,37 @@ MixstreamPro.padModeConfigs = {
         onActivate: function (group, deckState) {
             for (let i = 1; i <= 4; i++) {
                 hotcueNum = i + (deckState.padModes.hotcue === 1 ? 0 : 4);
-                if (engine.getValue(group, "hotcue_" + hotcueNum + "_type") && engine.getValue(group, "hotcue_" + hotcueNum + "_status")) {
+                if (engine.getValue(group, "hotcue_" + hotcueNum + "_type") === 4) {
+                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x00);
+                } else if (engine.getValue(group, "hotcue_" + hotcueNum + "_status")) {
                     midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
                 }
             }
-        },
-        onDeactivate: function (group, deckState) { }
+        }
     },
     savedloop: {
         ledAddress: 0x0C,
         requiresTrack: true,
         onActivate: function (group, deckState) {
-            script.triggerControl(group, "reloop_toggle");
-        },
-        onDeactivate: function (group, deckState) {
-            script.triggerControl(group, "reloop_toggle");
+            for (let i = 1; i <= 4; i++) {
+                loopNum = i + (deckState.padModes.savedloop === 1 ? 0 : 4);
+                if (engine.getValue(group, "hotcue_" + loopNum + "_type") === 1) {
+                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x00);
+                } else if (engine.getValue(group, "hotcue_" + loopNum + "_status")) {
+                    midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
+                }
+            }
         }
     },
     autoloop: {
         ledAddress: 0x0E,
         requiresTrack: false,
-        onActivate: function (group, deckState) { },
-        onDeactivate: function (group, deckState) { },
+        onActivate: function (group, deckState) { }
     },
     roll: {
         ledAddress: 0x0D,
         requiresTrack: false,
-        onActivate: function (group, deckState) { },
-        onDeactivate: function (group, deckState) { }
+        onActivate: function (group, deckState) { }
     },
     sampler: {
         ledAddress: 0x0D,
@@ -411,8 +414,7 @@ MixstreamPro.padModeConfigs = {
                     midi.sendShortMsg(deckState.midiStatus, (14 + i), 0x7f);
                 }
             }
-        },
-        onDeactivate: function (group, deckState) { }
+        }
     }
 };
 
@@ -446,7 +448,7 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
 
             // // Turn off other mode LEDs
             Object.keys(MixstreamPro.padModeConfigs).forEach(key => {
-                midi.sendShortMsg(status, MixstreamPro.padModeConfigs[key].ledAddress, 0x00);
+                midi.sendShortMsg(status, MixstreamPro.padModeConfigs[key].ledAddress, 0x01);
             });
 
             if (deckState.blinktimer) {
@@ -474,9 +476,6 @@ MixstreamPro.genericToggle = function (channel, control, value, status, group, c
             });
 
             config.onActivate(group, deckState);
-        } else {
-            // Run mode-specific deactivation
-            config.onDeactivate(group, deckState);
         }
     }
 }
@@ -514,21 +513,50 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     // HOTCUE MODE
     if (deckState.padModes.hotcue && (MixstreamPro.settings.hotCueWhilePlaying || !PlayStatus)) {
         let hotcueNum = padNumber + (4 * (deckState.padModes.hotcue - 1));
-        if (value === 127) {
-            if (MixstreamPro.shift) {
-                engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
-                midi.sendShortMsg(deckState.midiStatus, control, 0x01);
-            } else {
-                engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 1);
-                midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
+        // Only set if not a saved loop
+        if (engine.getValue(group, "hotcue_" + hotcueNum + "_type") != 4) {
+            if (value === 127) {
+                if (MixstreamPro.shift) {
+                    engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
+                    midi.sendShortMsg(deckState.midiStatus, control, 0x01);
+                } else {
+                    engine.setValue(group, "hotcue_" + hotcueNum + "_activatecue", 1);
+                    midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
+                }
+            } else if (value === 0) {
+                engine.setValue(group, "hotcue_" + hotcueNum + "_activatecue", 0);
             }
-        } else if (value === 0) {
-            engine.setValue(group, "hotcue_" + hotcueNum + "_activate", 0);
         }
     }
 
-    // SAVED LOOP MODE in the works
-
+    // SAVEDLOOP MODE
+    if (deckState.padModes.savedloop) {
+        let loopNum = padNumber + (4 * (deckState.padModes.savedloop - 1));
+        // Only set if not a hotcue
+        if (engine.getValue(group, "hotcue_" + loopNum + "_type") != 1) {
+            if (value === 127) {
+                if (MixstreamPro.shift) {
+                    engine.setValue(group, "hotcue_" + loopNum + "_clear", 1);
+                    midi.sendShortMsg(deckState.midiStatus, control, 0x01);
+                } else {
+                    if (engine.getValue(group, "hotcue_" + loopNum + "_type")) {
+                        engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
+                    } else if (!engine.getValue(group, "loop_in")) {
+                        engine.setValue(group, "loop_in", 1);
+                        // Make the LED flash here
+                    } else {
+                        engine.setValue(group, "loop_out", 1);
+                        engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
+                        engine.setValue(group, "loop_in", 0);
+                        // engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
+                        midi.sendShortMsg(deckState.midiStatus, control, 0x7f);
+                    }
+                }
+            } else if (value === 0) {
+                engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 0);
+            }
+        }
+    }
     // AUTOLOOP MODE
     if (value === 127 && deckState.padModes.autoloop) {
         let loopSize = deckState.padModes.autoloop === 1 ? config.autoloopBank1 : config.autoloopBank2;
