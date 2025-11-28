@@ -1,7 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
-<MixxxControllerPreset mixxxVersion="2.0" schemaVersion="1">
+<MixxxControllerPreset mixxxVersion="2.4+" schemaVersion="1">
     <info>
         <name>Numark Mixstream Pro</name>
+        <author>danielkinahan and audministrator</author>
+        <forums>https://mixxx.discourse.group/t/numark-mixstream-pro-mapping/24858</forums>
     </info>
     <controller id="MixstreamPro">
         <scriptfiles>
