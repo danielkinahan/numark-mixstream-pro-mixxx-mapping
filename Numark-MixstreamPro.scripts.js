@@ -658,11 +658,13 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // BEATLOOPROLL MODE
     if (deckState.padModes.roll) {
-        let loopSize = deckState.padModes.roll === 1 ? config.beatloopRollBank1 : config.beatloopRollBank2;
-        engine.setValue(group, "beatloop_size", loopSize);
         if (value === 127) {
+            let loopSize = deckState.padModes.roll === 1 ? config.beatloopRollBank1 : config.beatloopRollBank2;
+            engine.setValue(group, "beatloop_size", loopSize);
+            if (!engine.getValue(group, "loop_enabled")) {
+                engine.setValue(group, "beatlooproll_activate", true);
+            }
             // Send LED feedback
-            engine.setValue(group, "beatlooproll_activate", true);
             ledOn(status, control);
         } else if (value === 0) {
             engine.setValue(group, "beatlooproll_activate", false);

@@ -4,7 +4,6 @@ This is a mapping for the [Numark Mixstream Pro](https://www.numark.com/product/
 
 ## Roadmap Issues
 - [ ] Jog wheels are too sensitive
-- [ ] Pressing one roll pad during another disables both
 - [ ] Autoloop should continue from the same origin beat when changed ?
 - [ ] Saved loops don't begin playing immediately after being saved
 - [ ] Occasionally the autoloop/roll will start behind the playhead and never trigger
@@ -12,3 +11,4 @@ This is a mapping for the [Numark Mixstream Pro](https://www.numark.com/product/
 
 ## Other Issues
 - Stems mode (Shift + Hotcue) will be implemented when it's added to Mixxx.
+- Playing beatlooprolls during an autoloop will cause the loop to stay when releasing the roll pad. This is because Mixxx doesn't have distinction between different types of loops
