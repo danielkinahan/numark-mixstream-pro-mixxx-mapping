@@ -45,6 +45,8 @@ MixstreamPro.padConfigs = {
     4: { autoloopBank1: 32, autoloopBank2: 2, beatloopRollBank1: 0.3333, beatloopRollBank2: 2, midiLED: 0x12 }
 };
 
+MixstreamPro.pitchRanges = [0.04, 0.08, 0.10, 0.20, 0.5, 1];
+
 // TOGGLE EFFECT buttons - Effect state data
 // Blink timer holds the engine timer ID, LEDblink tracks current LED state, midiCC is the CC number for the effect button
 MixstreamPro.effectStates = {
@@ -411,6 +413,37 @@ MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
             deckState.slipenabledToggle = false;
         }
     }
+}
+
+MixstreamPro.pitchBend = function (channel, control, value, status, group) {
+    if (value === 127) {
+        if (MixstreamPro.shift) {
+            // Change range of slider
+            let rate = engine.getValue(group, "rateRange");
+            let index = MixstreamPro.pitchRanges.indexOf(rate);
+            if (control === 29) {
+                engine.setValue(group, "rateRange", MixstreamPro.pitchRanges[Math.max(0, index - 1)]);
+            } else if (control === 30) {
+                engine.setValue(group, "rateRange", MixstreamPro.pitchRanges[Math.min(MixstreamPro.pitchRanges.length - 1, index + 1)]);
+            }
+
+        } else {
+            // Temporary pitch bend
+            if (control === 29) {
+                engine.setValue(group, "rate_temp_down", 1);
+            } else if (control === 30) {
+                engine.setValue(group, "rate_temp_up", 1);
+            }
+        }
+    } else {
+        // Reset temporary pitch bend
+        if (control === 29) {
+            engine.setValue(group, "rate_temp_down", 0);
+        } else if (control === 30) {
+            engine.setValue(group, "rate_temp_up", 0);
+        }
+    }
+
 }
 
 // Toggle mode configurations: defines which toggle, LED address, and other toggles to reset

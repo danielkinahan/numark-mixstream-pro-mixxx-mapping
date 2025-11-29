@@ -9,5 +9,4 @@ This is a mapping for the [Numark Mixstream Pro](https://www.numark.com/product/
 - [ ] Autoloop should continue from the same origin beat when changed ?
 - [ ] Saved loops don't begin playing immediately after being saved
 - [ ] Occasionally the autoloop/roll will start behind the playhead and never trigger
-- [ ] Shift pitch bend doesnt increase range (if Mixxx supports this)
 - [ ] Implement stems mode (when Mixxx supports this)
