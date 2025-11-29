@@ -59,8 +59,15 @@ MixstreamPro.effectStates = {
 // Init Hotcue variables - Deck state containers
 MixstreamPro.deck = {
     1: {
-        blinktimer: 0,
-        LEDblink: true,
+        //LED blink state for the pad mode toggles and performance pads
+        padModeButton: {
+            blinktimer: 0,
+            LEDblink: true,
+        },
+        padButton: {
+            blinktimer: 0,
+            LEDblink: true,
+        },
         midiStatus: 0x92,
         channel: "[Channel1]",
         auxChannel: "[Auxiliary2]",
@@ -80,8 +87,14 @@ MixstreamPro.deck = {
         }),
     },
     2: {
-        blinktimer: 0,
-        LEDblink: true,
+        padModeButton: {
+            blinktimer: 0,
+            LEDblink: true,
+        },
+        padButton: {
+            blinktimer: 0,
+            LEDblink: true,
+        },
         midiStatus: 0x93,
         channel: "[Channel2]",
         auxChannel: "[Auxiliary1]",
@@ -177,10 +190,10 @@ function initLEDs() {
 MixstreamPro.shutdown = function () {
     // Stop deck blink timers and turn off LEDs for decks
     Object.keys(MixstreamPro.deck).forEach(function (dn) {
-        var ds = MixstreamPro.deck[dn];
-        if (ds && ds.blinktimer) {
-            engine.stopTimer(ds.blinktimer);
-            ds.blinktimer = 0;
+        var deckstate = MixstreamPro.deck[dn];
+        if (deckstate && deckstate.padModeButton.blinktimer) {
+            engine.stopTimer(deckstate.padModeButton.blinktimer);
+            deckstate.padModeButton.blinktimer = 0;
         }
         // try to turn off common pad LEDs for the deck
         try {
@@ -487,7 +500,7 @@ MixstreamPro.padModeConfigs = {
         onActivate: function (group, deckState) { }
     },
     sampler: {
-        ledAddress: LED_ADDR.HOTCUE,
+        ledAddress: LED_ADDR.BEATLOOPROLL,
         requiresTrack: false,
         onActivate: function (group, deckState) {
             let samplerBank = deckState.padModes.sampler;
@@ -537,6 +550,10 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
         ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_3);
         ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_4);
 
+        // Stop any existing pad button blink timer
+        engine.stopTimer(deckState.padButton.blinktimer);
+        deckState.padButton.blinktimer = 0;
+
         let currentValue = padModes[configKey];
         let isActive = currentValue !== 0 && currentValue !== false;
 
@@ -555,9 +572,9 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
                 ledDim(status, MixstreamPro.padModeConfigs[key].ledAddress);
             });
 
-            if (deckState.blinktimer) {
-                engine.stopTimer(deckState.blinktimer);
-                deckState.blinktimer = 0;
+            if (deckState.padModeButton.blinktimer) {
+                engine.stopTimer(deckState.padModeButton.blinktimer);
+                deckState.padModeButton.blinktimer = 0;
             }
 
             // Turn on the LED for this mode
@@ -569,13 +586,13 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
 
             // It makes no sense to have the LED tracked in the deckstate for the padmode config but whatever
             ledDim(status, config.ledAddress);
-            deckState.blinktimer = engine.beginTimer(500, function () {
-                if (deckState.LEDblink) {
+            deckState.padModeButton.blinktimer = engine.beginTimer(500, function () {
+                if (deckState.padModeButton.LEDblink) {
                     ledOn(status, config.ledAddress);
-                    deckState.LEDblink = false;
+                    deckState.padModeButton.LEDblink = false;
                 } else {
                     ledDim(status, config.ledAddress);
-                    deckState.LEDblink = true;
+                    deckState.padModeButton.LEDblink = true;
                 }
             });
 
@@ -627,12 +644,27 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
                     } else if (!engine.getValue(group, "loop_in")) {
                         engine.setValue(group, "loop_in", 1);
                         // Make the LED flash here
+                        deckState.padButton.blinktimer = engine.beginTimer(250, function () {
+                            if (deckState.padButton.LEDblink) {
+                                ledOn(status, control);
+                                deckState.padButton.LEDblink = false;
+                            } else {
+                                ledDim(status, control);
+                                deckState.padButton.LEDblink = true;
+                            }
+                        });
                     } else {
                         engine.setValue(group, "loop_out", 1);
                         engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
                         engine.setValue(group, "loop_in", 0);
-                        // engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
+                        // Stop LED flashing and turn LED solid on
+                        engine.stopTimer(deckState.padButton.blinktimer);
+                        deckState.padButton.blinktimer = 0;
                         ledOn(deckState.midiStatus, control);
+                        // Small delay before activating loop to ensure Mixxx has processed loop_out
+                        engine.beginTimer(100, function () {
+                            engine.setValue(group, "hotcue_" + loopNum + "_activateloop", 1);
+                        }, 1);
                     }
                 }
             } else if (value === 0) {
