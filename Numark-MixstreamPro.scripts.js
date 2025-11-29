@@ -667,6 +667,13 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         } else if (value === 0) {
             engine.setValue(group, "beatlooproll_activate", false);
             ledDim(status, control);
+            // Restore slip mode after beatloop roll deactivates (Mixxx disables it automatically)
+            if (deckState.slipenabledToggle) {
+                engine.beginTimer(10, function () {
+                    engine.setValue(group, "slip_enabled", true);
+                    ledOn(status, LED_ADDR.SLIP);
+                }, 1);
+            }
         }
     }
 
