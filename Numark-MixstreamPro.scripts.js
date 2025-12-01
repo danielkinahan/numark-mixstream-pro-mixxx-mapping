@@ -80,7 +80,11 @@ MixstreamPro.deck = {
         },
         slipenabledToggle: false,
         effectToggle: false,
-        previousJogValue: 0,
+        jogWheel: {
+            MSB: 0,
+            LSB: 0,
+            previousValue: 0,
+        },
         pitchSlider: new components.Pot({
             group: '[Channel1]',
             inKey: 'rate'
@@ -107,7 +111,11 @@ MixstreamPro.deck = {
         },
         slipenabledToggle: false,
         effectToggle: false,
-        previousJogValue: 0,
+        jogWheel: {
+            MSB: 0,
+            LSB: 0,
+            previousValue: 0,
+        },
         pitchSlider: new components.Pot({
             group: '[Channel2]',
             inKey: 'rate'
@@ -315,7 +323,45 @@ MixstreamPro.playIndicatorCallback2 = function (channel, control, value, status,
 }
 
 MixstreamPro.jogWheelTicksPerRevolution = 894;
-MixstreamPro.jogSensitivity = 0.05;
+
+// Generic JogWheel MSB handler for both decks
+JogCombined = function (group) {
+    let POS = engine.getValue(group, "playposition");
+    let deckNumber = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNumber];
+    let value = (deckState.jogWheel.MSB << 7) | deckState.jogWheel.LSB;
+    let interval = value - deckState.jogWheel.previousValue;
+
+    if (engine.isScratching(deckNumber)) {
+        engine.scratchTick(deckNumber, interval); // Scratch!
+    }
+    else // Jog
+    {
+        engine.setValue(group, "jog", interval);
+    }
+    deckState.jogWheel.previousValue = value;
+};
+
+MixstreamPro.JogMSB = function (channel, control, value, status, group) {
+    let deckNumber = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNumber];
+    if (deckState.jogWheel.MSB === value) {
+        return;
+    } else if (deckState.jogWheel.MSB > value) {
+        deckState.jogWheel.LSB = 127;
+    } else if (deckState.jogWheel.MSB < value) {
+        deckState.jogWheel.LSB = 0;
+    }
+    deckState.jogWheel.MSB = value;
+    JogCombined(group);
+};
+
+MixstreamPro.JogLSB = function (channel, control, value, status, group) {
+    let deckNumber = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNumber];
+    deckState.jogWheel.LSB = value;
+    JogCombined(group);
+};
 
 MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
     let deckNumber = script.deckFromGroup(group);
@@ -325,56 +371,18 @@ MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
         if (value === 0x7F) {    // If WheelTouch
             let alpha = 1.0 / 8;
             let beta = alpha / 32;
-            engine.scratchEnable(deckNumber, 8000, 33 + 1 / 3, alpha, beta);
+            engine.scratchEnable(deckNumber, MixstreamPro.jogWheelTicksPerRevolution, 33 + 1 / 3, alpha, beta);
         } else {    // If button up
             engine.scratchDisable(deckNumber);
         }
+    } else {
+        if (value === 0x7F) {    // If WheelTouch
+            engine.setValue(group, "play", 0)
+        } else {    // If button up
+            engine.setValue(group, "play", 1)
+        }
     }
 }
-
-// Generic JogWheel MSB handler for both decks
-MixstreamPro.JogMSB = function (channel, control, value, status, group) {
-    let MSB = value;
-    let POS = engine.getValue(group, "playposition");
-    let deckNumber = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNumber];
-
-    switch (true) {
-        case POS <= 0:
-            engine.setValue(group, "playposition", 1);
-            break;
-        case POS >= 1:
-            engine.setValue(group, "playposition", 0);
-            break;
-    }
-
-    if (engine.isScratching(deckNumber)) {
-        if (MSB >= deckState.previousJogValue) {
-            engine.scratchTick(deckNumber, MSB / 2); // Scratch!
-            deckState.previousJogValue = value;
-        }
-        else {
-            engine.scratchTick(deckNumber, -MSB / 2); // Reverse Scratch!
-            deckState.previousJogValue = value;
-        }
-    }
-    else // Jog
-    {
-        if (MSB >= deckState.previousJogValue) {
-            engine.setValue(group, "jog", MSB * MixstreamPro.jogSensitivity);
-            deckState.previousJogValue = value;
-        }
-        else {
-            engine.setValue(group, "jog", -MSB * MixstreamPro.jogSensitivity);
-            deckState.previousJogValue = value;
-        }
-    }
-};
-
-MixstreamPro.JogLSB = function (channel, control, value, status, group) {
-    // LSB not used, use on 7 Bits
-    return
-};
 
 // Generic track loaded callback - works for both decks
 MixstreamPro.trackLoadedCallback = function (value, group, control) {
@@ -405,7 +413,7 @@ MixstreamPro.trackLoadedCallback = function (value, group, control) {
     ledDim(deckState.midiStatus, 13);
     ledDim(deckState.midiStatus, 14);
 
-    deckState.previousJogValue = 0;
+    deckState.jogWheel.previousValue = 0;
 }
 
 // Generic slip_enabled_toggle function for both decks

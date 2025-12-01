@@ -706,8 +706,8 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.JogLSB</key>
-                <description>JogLSB_1</description>
+                <key>MixstreamPro.JogMSB</key>
+                <description>Deck 1: JogWheel MSB</description>
                 <status>0xB2</status>
                 <midino>0x37</midino>
                 <options>
@@ -716,8 +716,8 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.JogLSB</key>
-                <description>JogLSB_2</description>
+                <key>MixstreamPro.JogMSB</key>
+                <description>Deck 2: JogWheel MSB</description>
                 <status>0xB3</status>
                 <midino>0x37</midino>
                 <options>
@@ -726,8 +726,8 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>MixstreamPro.JogMSB</key>
-                <description>JogMSB_1</description>
+                <key>MixstreamPro.JogLSB</key>
+                <description>Deck 1: JogWheel LSB</description>
                 <status>0xB2</status>
                 <midino>0x4D</midino>
                 <options>
@@ -736,8 +736,8 @@
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>MixstreamPro.JogMSB</key>
-                <description>JogMSB_2</description>
+                <key>MixstreamPro.JogLSB</key>
+                <description>Deck 2: JogWheel LSB</description>
                 <status>0xB3</status>
                 <midino>0x4D</midino>
                 <options>
