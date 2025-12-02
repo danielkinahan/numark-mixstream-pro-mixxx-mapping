@@ -84,6 +84,7 @@ MixstreamPro.deck = {
             MSB: 0,
             LSB: 0,
             previousValue: 0,
+            paused: false,
         },
         pitchSlider: new components.Pot({
             group: '[Channel1]',
@@ -115,6 +116,7 @@ MixstreamPro.deck = {
             MSB: 0,
             LSB: 0,
             previousValue: 0,
+            paused: false,
         },
         pitchSlider: new components.Pot({
             group: '[Channel2]',
@@ -331,6 +333,11 @@ JogCombined = function (group) {
     let deckState = MixstreamPro.deck[deckNumber];
     let value = (deckState.jogWheel.MSB << 7) | deckState.jogWheel.LSB;
     let interval = value - deckState.jogWheel.previousValue;
+    deckState.jogWheel.previousValue = value;
+
+    if (Math.abs(interval) > 45) {
+        return; // Ignore large jumps
+    }
 
     if (engine.isScratching(deckNumber)) {
         engine.scratchTick(deckNumber, interval); // Scratch!
@@ -339,7 +346,6 @@ JogCombined = function (group) {
     {
         engine.setValue(group, "jog", interval);
     }
-    deckState.jogWheel.previousValue = value;
 };
 
 MixstreamPro.JogMSB = function (channel, control, value, status, group) {
@@ -376,10 +382,12 @@ MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
             engine.scratchDisable(deckNumber);
         }
     } else {
-        if (value === 0x7F) {    // If WheelTouch
+        if (value === 0x7F && engine.getValue(group, "play")) {
             engine.setValue(group, "play", 0)
-        } else {    // If button up
+            deckState.jogWheel.paused = true;
+        } else if (deckState.jogWheel.paused) {
             engine.setValue(group, "play", 1)
+            deckState.jogWheel.paused = false;
         }
     }
 }
