@@ -37,6 +37,12 @@ const LED_ADDR = {
     PAD_MODE_4: 18
 };
 
+const SCRATCH_MODE = Object.freeze({
+    jog: 0,
+    vinyl: 1,
+    smart: 2
+});
+
 // Pad configurations for each mode (Hotcue, Autoloop, BeatloopRoll)
 MixstreamPro.padConfigs = {
     1: { autoloopBank1: 4, autoloopBank2: 0.25, beatloopRollBank1: 0.125, beatloopRollBank2: 0.5, midiLED: 0x0F },
@@ -78,13 +84,15 @@ MixstreamPro.deck = {
             roll: 0,
             sampler: 0,
         },
-        slipenabledToggle: false,
         effectToggle: false,
         jogWheel: {
             MSB: 0,
             LSB: 0,
             previousValue: 0,
+            previousTimestamp: 0,
+            buffer: [],
             paused: false,
+            scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
             group: '[Channel1]',
@@ -110,13 +118,15 @@ MixstreamPro.deck = {
             roll: 0,
             sampler: 0,
         },
-        slipenabledToggle: false,
         effectToggle: false,
         jogWheel: {
             MSB: 0,
             LSB: 0,
             previousValue: 0,
+            buffer: [],
+            previousTimestamp: 0,
             paused: false,
+            scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
             group: '[Channel2]',
@@ -326,25 +336,43 @@ MixstreamPro.playIndicatorCallback2 = function (channel, control, value, status,
 
 MixstreamPro.jogWheelTicksPerRevolution = 894;
 
+const JOG_BUFFER_SIZE = 4;
 // Generic JogWheel MSB handler for both decks
 JogCombined = function (group) {
-    let POS = engine.getValue(group, "playposition");
     let deckNumber = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNumber];
     let value = (deckState.jogWheel.MSB << 7) | deckState.jogWheel.LSB;
-    let interval = value - deckState.jogWheel.previousValue;
-    deckState.jogWheel.previousValue = value;
+    let timestamp = Date.now();
 
-    if (Math.abs(interval) > 45) {
+    let interval = value - deckState.jogWheel.previousValue;
+    let dt = timestamp - deckState.jogWheel.previousTimestamp;
+
+    deckState.jogWheel.previousValue = value;
+    deckState.jogWheel.previousTimestamp = timestamp;
+
+    if (Math.abs(interval) > 45 || dt <= 0 || dt > 10000) {
         return; // Ignore large jumps
     }
 
-    if (engine.isScratching(deckNumber)) {
-        engine.scratchTick(deckNumber, interval); // Scratch!
+    let speed = interval / dt * 10;
+
+    // Smooth over speed to reduce warbling effect
+    let buffer = deckState.jogWheel.buffer;
+    buffer.push(speed);
+    if (buffer.length > JOG_BUFFER_SIZE) {
+        buffer.shift();
     }
-    else // Jog
-    {
-        engine.setValue(group, "jog", interval);
+
+    let smoothedSpeed = buffer.length > 0 ?
+        buffer.slice().sort((a, b) => a - b)[Math.floor(buffer.length / 2)] :
+        speed;
+
+    if (engine.isScratching(deckNumber)) {
+        // If you uncomment this, apply the buffer over interval to smooth out weird outlier values
+        // engine.scratchTick(deckNumber, interval);
+        engine.setValue(group, "scratch2", smoothedSpeed);
+    } else {
+        engine.setValue(group, "jog", interval * 0.5);
     }
 };
 
@@ -373,21 +401,56 @@ MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
     let deckNumber = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNumber];
 
-    if (deckState.slipenabledToggle) {
-        if (value === 0x7F) {    // If WheelTouch
-            let alpha = 1.0 / 8;
-            let beta = alpha / 32;
-            engine.scratchEnable(deckNumber, MixstreamPro.jogWheelTicksPerRevolution, 33 + 1 / 3, alpha, beta);
-        } else {    // If button up
-            engine.scratchDisable(deckNumber);
+    if (value === 0x7F) {
+        // If scratchMode not in jog mode
+        if (deckState.jogWheel.scratchMode) {
+            // let alpha = 1.0 / 8;
+            // let beta = alpha / 32;
+            // engine.scratchEnable(deckNumber, MixstreamPro.jogWheelTicksPerRevolution, 33 + 1 / 3, alpha, beta);
+            engine.setValue(group, "scratch2_enable", true);
+            if (engine.getValue(group, "play")) {
+                engine.setValue(group, "play", 0)
+                deckState.jogWheel.paused = true;
+            }
         }
     } else {
-        if (value === 0x7F && engine.getValue(group, "play")) {
-            engine.setValue(group, "play", 0)
-            deckState.jogWheel.paused = true;
-        } else if (deckState.jogWheel.paused) {
+        // if (Math.abs(deckState.jogWheel.previousSpeed) < 1) {
+        engine.setValue(group, "scratch2_enable", false);
+        // }
+
+        if (deckState.jogWheel.paused) {
             engine.setValue(group, "play", 1)
             deckState.jogWheel.paused = false;
+        }
+    }
+}
+
+// Generic slip_enabled_toggle function for both decks
+MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
+    if (value === 0) { return }
+
+    if (value === 127) {
+        let deckNum = script.deckFromGroup(group);
+        let deckState = MixstreamPro.deck[deckNum];
+
+        if (MixstreamPro.shift) {
+            if (deckState.jogWheel.scratchMode === SCRATCH_MODE.jog) {
+                deckState.jogWheel.scratchMode = SCRATCH_MODE.vinyl;
+                ledDim(status, LED_ADDR.SLIP);
+            } else {
+                deckState.jogWheel.scratchMode = SCRATCH_MODE.jog;
+                ledOff(status, LED_ADDR.SLIP);
+            }
+        } else {
+            if (deckState.jogWheel.scratchMode === SCRATCH_MODE.vinyl) {
+                engine.setValue(group, "slip_enabled", true);
+                deckState.jogWheel.scratchMode = SCRATCH_MODE.smart;
+                ledOn(status, LED_ADDR.SLIP);
+            } else if (deckState.jogWheel.scratchMode === SCRATCH_MODE.smart) {
+                engine.setValue(group, "slip_enabled", false);
+                deckState.jogWheel.scratchMode = SCRATCH_MODE.vinyl;
+                ledDim(status, LED_ADDR.SLIP);
+            }
         }
     }
 }
@@ -422,26 +485,6 @@ MixstreamPro.trackLoadedCallback = function (value, group, control) {
     ledDim(deckState.midiStatus, 14);
 
     deckState.jogWheel.previousValue = 0;
-}
-
-// Generic slip_enabled_toggle function for both decks
-MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
-    if (value === 0) { return }
-
-    if (value === 127) {
-        let deckNum = script.deckFromGroup(group);
-        let deckState = MixstreamPro.deck[deckNum];
-
-        if (!deckState.slipenabledToggle) {
-            engine.setValue(group, "slip_enabled", true);
-            ledOn(status, LED_ADDR.SLIP);
-            deckState.slipenabledToggle = true;
-        } else {
-            engine.setValue(group, "slip_enabled", false);
-            ledDim(status, LED_ADDR.SLIP);
-            deckState.slipenabledToggle = false;
-        }
-    }
 }
 
 MixstreamPro.pitchBend = function (channel, control, value, status, group) {
@@ -718,7 +761,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
             engine.setValue(group, "beatlooproll_activate", false);
             ledDim(status, control);
             // Restore slip mode after beatloop roll deactivates (Mixxx disables it automatically)
-            if (deckState.slipenabledToggle) {
+            if (deckState.jogWheel.scratchMode === SCRATCH_MODE.smart) {
                 engine.beginTimer(10, function () {
                     engine.setValue(group, "slip_enabled", true);
                     ledOn(status, LED_ADDR.SLIP);
