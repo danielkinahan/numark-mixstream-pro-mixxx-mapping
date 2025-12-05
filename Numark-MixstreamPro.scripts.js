@@ -11,7 +11,9 @@ MixstreamPro.settings = {
     //  your movement and lowering it makes it sound warbly
     jogWheelBufferSize: 4,
     // Speed at which the scratching will turn off. This can make the track stuck in a speed if too low
-    jogWheelThreshold: 1,
+    jogWheelThreshold: 0.5,
+    // If the jog wheel speed gets stuck, this will reset it every n miliseconds
+    jogWheelStuckTimeout: 500,
 };
 
 // MIDI constants
@@ -99,6 +101,7 @@ MixstreamPro.deck = {
             paused: false,
             touched: false,
             speed: 0,
+            previousSpeed: 0,
             scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
@@ -135,6 +138,7 @@ MixstreamPro.deck = {
             paused: false,
             touched: false,
             speed: 0,
+            previousSpeed: 0,
             scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
@@ -158,6 +162,19 @@ MixstreamPro.init = function (id, debugging) {
 
     // Init LEDs
     initLEDs()
+
+    // Unsticks the scratch every so often
+    engine.beginTimer(MixstreamPro.settings.jogWheelStuckTimeout, function () {
+        for (deck in MixstreamPro.deck) {
+            group = "[Channel" + deck + "]";
+            jogWheel = MixstreamPro.deck[deck].jogWheel
+            if (engine.getValue(group, "scratch2_enable") && jogWheel.speed === jogWheel.previousSpeed) {
+                engine.setValue(group, "scratch2", 0);
+                engine.setValue(group, "scratch2_enable", false);
+            }
+            jogWheel.previousSpeed = jogWheel.speed;
+        }
+    }, false);
 }
 
 // Helper utilities for LED and timer safety
@@ -391,7 +408,6 @@ JogCombined = function (group) {
             engine.beginTimer(400, function () {
                 engine.setValue(group, "slip_enabled", true);
             }, true);
-            // }
         }
         return;
     }
@@ -404,13 +420,6 @@ JogCombined = function (group) {
         engine.setValue(group, "jog", interval);
     }
     deckState.jogWheel.speed = smoothedSpeed;
-
-    // If you find scratching can make the play rate stuck at a certain speed uncomment this
-    // engine.beginTimer(400, function () {
-    //     if (engine.getValue(group, "scratch2") === smoothedSpeed) {
-    //         engine.setValue(group, "scratch2", 0);
-    //     }
-    // }, true);
 };
 
 MixstreamPro.JogMSB = function (channel, control, value, status, group) {

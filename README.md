@@ -12,7 +12,6 @@ In all modes while stopped the outer wheel scrubs the track silently and the pla
 - Jog Mode: Platter adjusts tempo of track temporarily, just like outer wheel
 
 ## Roadmap Issues
-- [ ] scratchDisable should only be called after jogWheel stops spinning
 - [ ] Autoloop should continue from the same origin beat when changed ?
 - [ ] Remove loopin on trackload
 - [ ] Add ptrexs preference for hotcues/savedloops
