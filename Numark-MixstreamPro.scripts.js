@@ -1,12 +1,17 @@
-// https://github.com/mixxxdj/mixxx/wiki/midi%20scripting
-// Example MIDI Msg : status 0x94 (ch 5, opcode 0x9), ctrl 0x03, val 0x01
-
 var MixstreamPro = {};
 
 MixstreamPro.settings = {
+    // Stutter on shift + play, turning this to false makes shift+play do a slow start effect
     stutterPlayOnShiftPlay: true,
+    // Enable pressing hotcues while the track is moving
     hotCueWhilePlaying: true,
-    enableVUMeter: true, // Produces a lot of MIDI traffic that makes it difficult to debug
+    // Produces a lot of MIDI traffic that makes it difficult to debug
+    enableVUMeter: true,
+    // Amount of values to smooth jog speed over. Raising this makes it lag behind
+    //  your movement and lowering it makes it sound warbly
+    jogWheelBufferSize: 4,
+    // Speed at which the scratching will turn off. This can make the track stuck in a speed if too low
+    jogWheelThreshold: 1,
 };
 
 // MIDI constants
@@ -92,6 +97,8 @@ MixstreamPro.deck = {
             previousTimestamp: 0,
             buffer: [],
             paused: false,
+            touched: false,
+            speed: 0,
             scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
@@ -126,6 +133,8 @@ MixstreamPro.deck = {
             buffer: [],
             previousTimestamp: 0,
             paused: false,
+            touched: false,
+            speed: 0,
             scratchMode: SCRATCH_MODE.vinyl,
         },
         pitchSlider: new components.Pot({
@@ -334,9 +343,6 @@ MixstreamPro.playIndicatorCallback2 = function (channel, control, value, status,
     engine.setValue("[Auxiliary1]", "orientation", 0)
 }
 
-MixstreamPro.jogWheelTicksPerRevolution = 894;
-
-const JOG_BUFFER_SIZE = 4;
 // Generic JogWheel MSB handler for both decks
 JogCombined = function (group) {
     let deckNumber = script.deckFromGroup(group);
@@ -359,7 +365,7 @@ JogCombined = function (group) {
     // Smooth over speed to reduce warbling effect
     let buffer = deckState.jogWheel.buffer;
     buffer.push(speed);
-    if (buffer.length > JOG_BUFFER_SIZE) {
+    if (buffer.length > MixstreamPro.settings.jogWheelBufferSize) {
         buffer.shift();
     }
 
@@ -367,13 +373,44 @@ JogCombined = function (group) {
         buffer.slice().sort((a, b) => a - b)[Math.floor(buffer.length / 2)] :
         speed;
 
+    // Keep scratching until the wheel has stopped spinning
+    if (!deckState.jogWheel.touched && Math.abs(speed) <= MixstreamPro.settings.jogWheelThreshold) {
+        // let alpha = 1.0 / 8;
+        // let beta = alpha / 32;
+        // engine.scratchEnable(deckNumber, 894, 33 + 1 / 3, alpha, beta);
+        engine.setValue(group, "scratch2", 0);
+        engine.setValue(group, "scratch2_enable", false);
+
+        if (deckState.jogWheel.paused) {
+            engine.setValue(group, "play", 1)
+            deckState.jogWheel.paused = false;
+        }
+        if (deckState.jogWheel.scratchMode === SCRATCH_MODE.smart) {
+            // It doesnt work to just flip this, there needs to be a delay before its turned back on
+            engine.setValue(group, "slip_enabled", false);
+            engine.beginTimer(400, function () {
+                engine.setValue(group, "slip_enabled", true);
+            }, true);
+            // }
+        }
+        return;
+    }
+
     if (engine.isScratching(deckNumber)) {
         // If you uncomment this, apply the buffer over interval to smooth out weird outlier values
         // engine.scratchTick(deckNumber, interval);
         engine.setValue(group, "scratch2", smoothedSpeed);
     } else {
-        engine.setValue(group, "jog", interval * 0.5);
+        engine.setValue(group, "jog", interval);
     }
+    deckState.jogWheel.speed = smoothedSpeed;
+
+    // If you find scratching can make the play rate stuck at a certain speed uncomment this
+    // engine.beginTimer(400, function () {
+    //     if (engine.getValue(group, "scratch2") === smoothedSpeed) {
+    //         engine.setValue(group, "scratch2", 0);
+    //     }
+    // }, true);
 };
 
 MixstreamPro.JogMSB = function (channel, control, value, status, group) {
@@ -406,18 +443,20 @@ MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
         if (deckState.jogWheel.scratchMode) {
             // let alpha = 1.0 / 8;
             // let beta = alpha / 32;
-            // engine.scratchEnable(deckNumber, MixstreamPro.jogWheelTicksPerRevolution, 33 + 1 / 3, alpha, beta);
+            // engine.scratchEnable(deckNumber, 894, 33 + 1 / 3, alpha, beta);
             engine.setValue(group, "scratch2_enable", true);
+            deckState.jogWheel.touched = true;
             if (engine.getValue(group, "play")) {
                 engine.setValue(group, "play", 0)
                 deckState.jogWheel.paused = true;
             }
         }
     } else {
-        // if (Math.abs(deckState.jogWheel.previousSpeed) < 1) {
-        engine.setValue(group, "scratch2_enable", false);
-        // }
-
+        deckState.jogWheel.touched = false;
+        if (Math.abs(deckState.jogWheel.speed) <= MixstreamPro.settings.jogWheelThreshold) {
+            engine.setValue(group, "scratch2", 0);
+            engine.setValue(group, "scratch2_enable", false);
+        }
         if (deckState.jogWheel.paused) {
             engine.setValue(group, "play", 1)
             deckState.jogWheel.paused = false;
@@ -735,7 +774,6 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
     if (value === 127 && deckState.padModes.autoloop) {
         let loopSize = deckState.padModes.autoloop === 1 ? config.autoloopBank1 : config.autoloopBank2;
         engine.setValue(group, "beatloop_" + loopSize + "_toggle", true);
-        console.log(engine.getValue(group, "beatloop_" + loopSize + "_active"))
 
         // Send LED feedback
         for (let i = 1; i <= 4; i++) {
