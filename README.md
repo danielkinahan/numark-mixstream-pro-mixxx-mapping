@@ -15,7 +15,6 @@ In all modes while stopped the outer wheel scrubs the track silently and the pla
 - [ ] Autoloop should continue from the same origin beat when changed ?
 - [ ] Remove loopin on trackload
 - [ ] Add ptrexs preference for hotcues/savedloops
-- [ ] Shift button should be tracked in deck state
 
 ## Other Issues
 - Stems mode (Shift + Hotcue) will be implemented when it's added to Mixxx.

@@ -84,6 +84,7 @@ MixstreamPro.deck = {
         midiStatus: 0x92,
         channel: "[Channel1]",
         auxChannel: "[Auxiliary2]",
+        shift: false,
         padModes: {
             hotcue: 0,
             savedloop: 0,
@@ -121,6 +122,7 @@ MixstreamPro.deck = {
         midiStatus: 0x93,
         channel: "[Channel2]",
         auxChannel: "[Auxiliary1]",
+        shift: false,
         padModes: {
             hotcue: 0,
             savedloop: 0,
@@ -326,20 +328,21 @@ MixstreamPro.playAux1 = function (channel, control, value, status, group) {
     if (value === 0) { return }
 }
 
-MixstreamPro.shift = false
-
 MixstreamPro.shiftButton = function (channel, control, value, status, group) {
     // Set shift explicitly: true while held (value 127), false on release (value 0)
-    MixstreamPro.shift = (value === 127);
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
+    deckState.shift = (value === 127);
 }
 
 // Press and hold Shift and then press this button to “stutter-play” the track from the initial cue point.
 MixstreamPro.play = function (channel, control, value, status, group) {
     let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
     let playStatus = engine.getValue(group, "play_indicator")
 
     if (value === 0x00) {
-        if (MixstreamPro.shift) {
+        if (deckState.shift) {
             if (MixstreamPro.settings.stutterPlayOnShiftPlay) {
                 engine.setValue(group, "cue_gotoandplay", 1);
             } else {
@@ -362,8 +365,8 @@ MixstreamPro.playIndicatorCallback2 = function (channel, control, value, status,
 
 // Generic JogWheel MSB handler for both decks
 JogCombined = function (group) {
-    let deckNumber = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNumber];
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
     let value = (deckState.jogWheel.MSB << 7) | deckState.jogWheel.LSB;
     let timestamp = Date.now();
 
@@ -394,7 +397,7 @@ JogCombined = function (group) {
     if (!deckState.jogWheel.touched && Math.abs(speed) <= MixstreamPro.settings.jogWheelThreshold) {
         // let alpha = 1.0 / 8;
         // let beta = alpha / 32;
-        // engine.scratchEnable(deckNumber, 894, 33 + 1 / 3, alpha, beta);
+        // engine.scratchEnable(deckNum, 894, 33 + 1 / 3, alpha, beta);
         engine.setValue(group, "scratch2", 0);
         engine.setValue(group, "scratch2_enable", false);
 
@@ -412,9 +415,9 @@ JogCombined = function (group) {
         return;
     }
 
-    if (engine.isScratching(deckNumber)) {
+    if (engine.isScratching(deckNum)) {
         // If you uncomment this, apply the buffer over interval to smooth out weird outlier values
-        // engine.scratchTick(deckNumber, interval);
+        // engine.scratchTick(deckNum, interval);
         engine.setValue(group, "scratch2", smoothedSpeed);
     } else {
         engine.setValue(group, "jog", interval);
@@ -423,8 +426,8 @@ JogCombined = function (group) {
 };
 
 MixstreamPro.JogMSB = function (channel, control, value, status, group) {
-    let deckNumber = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNumber];
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
     if (deckState.jogWheel.MSB === value) {
         return;
     } else if (deckState.jogWheel.MSB > value) {
@@ -437,22 +440,22 @@ MixstreamPro.JogMSB = function (channel, control, value, status, group) {
 };
 
 MixstreamPro.JogLSB = function (channel, control, value, status, group) {
-    let deckNumber = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNumber];
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
     deckState.jogWheel.LSB = value;
     JogCombined(group);
 };
 
 MixstreamPro.WheelTouch = function (channel, control, value, status, group) {
-    let deckNumber = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNumber];
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
 
     if (value === 0x7F) {
         // If scratchMode not in jog mode
         if (deckState.jogWheel.scratchMode) {
             // let alpha = 1.0 / 8;
             // let beta = alpha / 32;
-            // engine.scratchEnable(deckNumber, 894, 33 + 1 / 3, alpha, beta);
+            // engine.scratchEnable(deckNum, 894, 33 + 1 / 3, alpha, beta);
             engine.setValue(group, "scratch2_enable", true);
             deckState.jogWheel.touched = true;
             if (engine.getValue(group, "play")) {
@@ -481,7 +484,7 @@ MixstreamPro.toggleScratch = function (channel, control, value, status, group) {
         let deckNum = script.deckFromGroup(group);
         let deckState = MixstreamPro.deck[deckNum];
 
-        if (MixstreamPro.shift) {
+        if (deckState.shift) {
             if (deckState.jogWheel.scratchMode === SCRATCH_MODE.jog) {
                 deckState.jogWheel.scratchMode = SCRATCH_MODE.vinyl;
                 ledDim(status, LED_ADDR.SLIP);
@@ -537,7 +540,9 @@ MixstreamPro.trackLoadedCallback = function (value, group, control) {
 
 MixstreamPro.pitchBend = function (channel, control, value, status, group) {
     if (value === 127) {
-        if (MixstreamPro.shift) {
+        let deckNum = script.deckFromGroup(group);
+        let deckState = MixstreamPro.deck[deckNum];
+        if (deckState.shift) {
             // Change range of slider
             let rate = engine.getValue(group, "rateRange");
             let index = MixstreamPro.pitchRanges.indexOf(rate);
@@ -626,6 +631,8 @@ MixstreamPro.padModeConfigs = {
 MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
     if (value === 0) { return }
 
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
     let configKey;
 
     switch (control) {
@@ -636,7 +643,7 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
             configKey = "savedloop";
             break;
         case 13:
-            MixstreamPro.shift ? configKey = "sampler" : configKey = "roll";
+            deckState.shift ? configKey = "sampler" : configKey = "roll";
             break;
         case 14:
             configKey = "autoloop";
@@ -645,8 +652,6 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
             return; // Invalid control for this function
     }
 
-    let deckNum = script.deckFromGroup(group);
-    let deckState = MixstreamPro.deck[deckNum];
     let padModes = MixstreamPro.deck[deckNum].padModes;
     let config = MixstreamPro.padModeConfigs[configKey];
 
@@ -723,7 +728,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         // Only set if not a saved loop
         if (engine.getValue(group, "hotcue_" + hotcueNum + "_type") != 4) {
             if (value === 127) {
-                if (MixstreamPro.shift) {
+                if (deckState.shift) {
                     engine.setValue(group, "hotcue_" + hotcueNum + "_clear", 1);
                     ledDim(deckState.midiStatus, control);
                 } else {
@@ -742,7 +747,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
         // Only set if not a hotcue
         if (engine.getValue(group, "hotcue_" + loopNum + "_type") != 1) {
             if (value === 127) {
-                if (MixstreamPro.shift) {
+                if (deckState.shift) {
                     engine.setValue(group, "hotcue_" + loopNum + "_clear", 1);
                     ledDim(deckState.midiStatus, control);
                 } else {
