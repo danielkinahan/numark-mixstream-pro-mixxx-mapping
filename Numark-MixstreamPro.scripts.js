@@ -882,7 +882,11 @@ MixstreamPro.performancePad = function(_channel, control, value, status, group) 
     // SAMPLER MODE
     if (value === 127 && deckState.padModes.sampler) {
         const sample = padIndex(padNumber, deckState.padModes.sampler, "sampler");
-        engine.setValue(`[Sampler${sample}]`, "cue_gotoandplay", 1);
+        if (deckState.shift) {
+            engine.setValue(`[Sampler${sample}]`, "stop", 1);
+        } else {
+            engine.setValue(`[Sampler${sample}]`, "cue_gotoandplay", 1);
+        }
     }
 };
 
