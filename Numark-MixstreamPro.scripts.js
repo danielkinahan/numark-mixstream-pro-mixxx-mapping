@@ -5,6 +5,8 @@ MixstreamPro.settings = {
     stutterPlayOnShiftPlay: true,
     // Enable pressing hotcues while the track is moving
     hotCueWhilePlaying: true,
+    // Default pad mode to load tracks with: hotcue, savedloop, autoloop, roll, empty (keeps current engaged mode)
+    defaultPadMode: "",
     // Produces a lot of MIDI traffic that makes it difficult to debug
     enableVUMeter: true,
     // Amount of values to smooth jog speed over. Raising this makes it lag behind
@@ -196,7 +198,7 @@ function padIndexToCC(padNumber) {
     return 14 + padNumber;  // Pads start at CC 15 for pad 1
 }
 
-function hotcueIndex(padNumber, bank) {
+function padIndex(padNumber, bank) {
     return padNumber + (4 * (bank - 1));
 }
 
@@ -536,6 +538,18 @@ MixstreamPro.trackLoadedCallback = function (value, group, control) {
     ledDim(deckState.midiStatus, 14);
 
     deckState.jogWheel.previousValue = 0;
+
+    engine.setValue(group, "loop_remove", true)
+    engine.setValue(group, "beatloop_activate", false)
+    engine.setValue(group, "beatloop_size", 8)
+
+    if (MixstreamPro.settings.defaultPadMode) {
+        clearPadMode(deckState.padModes);
+        engine.beginTimer(400, function () {
+            togglePadMode(deckState.midiStatus, group, MixstreamPro.settings.defaultPadMode);
+        }, true);
+    }
+
 }
 
 MixstreamPro.pitchBend = function (channel, control, value, status, group) {
@@ -578,7 +592,7 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: true,
         onActivate: function (group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                let cueNum = hotcueIndex(i, deckState.padModes.hotcue);
+                let cueNum = padIndex(i, deckState.padModes.hotcue);
                 if (engine.getValue(group, "hotcue_" + cueNum + "_type") === 4) {
                     ledOff(deckState.midiStatus, padIndexToCC(i));
                 } else if (engine.getValue(group, "hotcue_" + cueNum + "_status")) {
@@ -592,7 +606,7 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: true,
         onActivate: function (group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                let loopNum = hotcueIndex(i, deckState.padModes.savedloop);
+                let loopNum = padIndex(i, deckState.padModes.savedloop);
                 if (engine.getValue(group, "hotcue_" + loopNum + "_type") === 1) {
                     ledOff(deckState.midiStatus, padIndexToCC(i));
                 } else if (engine.getValue(group, "hotcue_" + loopNum + "_status")) {
@@ -615,9 +629,8 @@ MixstreamPro.padModeConfigs = {
         ledAddress: LED_ADDR.BEATLOOPROLL,
         requiresTrack: false,
         onActivate: function (group, deckState) {
-            let samplerBank = deckState.padModes.sampler;
             for (let i = 1; i <= 4; i++) {
-                let sample = i + (4 * (samplerBank - 1));
+                let sample = padIndex(i, deckState.padModes.sampler);
                 if (engine.getValue("[Sampler" + sample + "]", "track_loaded")) {
                     // Turn on LED for loaded sampler
                     ledOn(deckState.midiStatus, padIndexToCC(i));
@@ -627,35 +640,21 @@ MixstreamPro.padModeConfigs = {
     }
 };
 
+clearPadMode = function (padModes) {
+    Object.keys(padModes).forEach(toggleName => {
+        padModes[toggleName] = 0;
+    });
+}
+
 // Generic toggle handler for mode switching
-MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
-    if (value === 0) { return }
+togglePadMode = function (status, group, configKey) {
 
     let deckNum = script.deckFromGroup(group);
     let deckState = MixstreamPro.deck[deckNum];
-    let configKey;
-
-    switch (control) {
-        case 11:
-            configKey = "hotcue";
-            break;
-        case 12:
-            configKey = "savedloop";
-            break;
-        case 13:
-            deckState.shift ? configKey = "sampler" : configKey = "roll";
-            break;
-        case 14:
-            configKey = "autoloop";
-            break;
-        default:
-            return; // Invalid control for this function
-    }
-
-    let padModes = MixstreamPro.deck[deckNum].padModes;
     let config = MixstreamPro.padModeConfigs[configKey];
+    let padModes = deckState.padModes;
 
-    if (value === 127 && (!config.requiresTrack || engine.getValue(group, "track_loaded"))) {
+    if ((!config.requiresTrack || engine.getValue(group, "track_loaded"))) {
         // Dim the pad-mode indicator LEDs before mode change
         ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_1);
         ledDim(deckState.midiStatus, LED_ADDR.PAD_MODE_2);
@@ -666,16 +665,8 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
         engine.stopTimer(deckState.padButton.blinktimer);
         deckState.padButton.blinktimer = 0;
 
-        let currentValue = padModes[configKey];
-        let isActive = currentValue !== 0 && currentValue !== false;
-
-        if (!isActive) {
-            // Reset other toggles
-            Object.keys(padModes).forEach(toggleName => {
-                padModes[toggleName] = 0;
-            });
-        }
-        if (currentValue === 0 || currentValue === 2) {
+        if (padModes[configKey] === 0 || padModes[configKey] === 2) {
+            clearPadMode(padModes);
             // Activate this mode, set to 1
             padModes[configKey] = 1;
 
@@ -692,7 +683,7 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
             // Turn on the LED for this mode
             ledOn(status, config.ledAddress);
             config.onActivate(group, deckState);
-        } else if (currentValue === 1) {
+        } else if (padModes[configKey] === 1) {
             // Toggle to state 2
             padModes[configKey] = 2;
 
@@ -711,6 +702,27 @@ MixstreamPro.togglePadMode = function (channel, control, value, status, group) {
             config.onActivate(group, deckState);
         }
     }
+}
+
+// Mode toggle wrappers for each control
+MixstreamPro.toggleHotCueOrStems = function (channel, control, value, status, group) {
+    if (value === 127) togglePadMode(status, group, "hotcue");
+}
+
+MixstreamPro.toggleSavedLoop = function (channel, control, value, status, group) {
+    if (value === 127) togglePadMode(status, group, "savedloop");
+}
+
+MixstreamPro.toggleAutoloop = function (channel, control, value, status, group) {
+    if (value === 127) togglePadMode(status, group, "autoloop");
+}
+
+MixstreamPro.toggleRollOrSampler = function (channel, control, value, status, group) {
+    let deckNum = script.deckFromGroup(group);
+    let deckState = MixstreamPro.deck[deckNum];
+    let padMode = deckState.shift ? "sampler" : "roll";
+
+    if (value === 127) togglePadMode(status, group, padMode);
 }
 
 MixstreamPro.performancePad = function (channel, control, value, status, group) {
@@ -743,7 +755,7 @@ MixstreamPro.performancePad = function (channel, control, value, status, group) 
 
     // SAVEDLOOP MODE
     if (deckState.padModes.savedloop) {
-        let loopNum = hotcueIndex(padNumber, deckState.padModes.savedloop);
+        let loopNum = padIndex(padNumber, deckState.padModes.savedloop);
         // Only set if not a hotcue
         if (engine.getValue(group, "hotcue_" + loopNum + "_type") != 1) {
             if (value === 127) {
