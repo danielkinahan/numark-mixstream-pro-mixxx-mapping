@@ -79,8 +79,16 @@ const padIndexToCC = function(padNumber) {
     return 14 + padNumber;  // Pads start at CC 15 for pad 1
 };
 
-const padIndex = function(padNumber, bank) {
-    return padNumber + (4 * (bank - 1));
+const padIndex = function(padNumber, bank, type) {
+    if (type === "hotcue") {
+        // Hotcues use 1-4, 9-13
+        return padNumber + ((bank -1) * 8);
+    } else if (type === "savedloop") {
+        // Saved loops use 5-8, 14-17
+        return padNumber + 4 + ((bank -1) * 8);
+    } else if (type === "sampler") {
+        return padNumber + (4 * (bank - 1));
+    }
 };
 
 const initLEDs = function() {
@@ -279,7 +287,7 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: true,
         onActivate: function(group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                const cueNum = padIndex(i, deckState.padModes.hotcue);
+                const cueNum = padIndex(i, deckState.padModes.hotcue, "hotcue");
                 if (engine.getValue(group, `hotcue_${cueNum}_type`) === 4) {
                     ledOff(deckState.midiStatus, padIndexToCC(i));
                 } else if (engine.getValue(group, `hotcue_${cueNum}_status`)) {
@@ -293,7 +301,7 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: true,
         onActivate: function(group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                const loopNum = padIndex(i, deckState.padModes.savedloop);
+                const loopNum = padIndex(i, deckState.padModes.savedloop, "savedloop");
                 if (engine.getValue(group, `hotcue_${loopNum}_type`) === 1) {
                     ledOff(deckState.midiStatus, padIndexToCC(i));
                 } else if (engine.getValue(group, `hotcue_${loopNum}_status`)) {
@@ -317,7 +325,7 @@ MixstreamPro.padModeConfigs = {
         requiresTrack: false,
         onActivate: function(_group, deckState) {
             for (let i = 1; i <= 4; i++) {
-                const sample = padIndex(i, deckState.padModes.sampler);
+                const sample = padIndex(i, deckState.padModes.sampler, "sampler");
                 if (engine.getValue(`[Sampler${sample}]`, "track_loaded")) {
                     // Turn on LED for loaded sampler
                     ledOn(deckState.midiStatus, padIndexToCC(i));
@@ -750,7 +758,7 @@ MixstreamPro.performancePad = function(_channel, control, value, status, group) 
 
     // HOTCUE MODE
     if (deckState.padModes.hotcue && (SETTINGS.hotCueWhilePlaying || !PlayStatus)) {
-        const hotcueNum = padNumber + (4 * (deckState.padModes.hotcue - 1));
+        const hotcueNum = padIndex(padNumber, deckState.padModes.hotcue, "hotcue");
         // Only set if not a saved loop
         if (engine.getValue(group, `hotcue_${hotcueNum}_type`) !== 4) {
             if (value === 127) {
@@ -769,7 +777,7 @@ MixstreamPro.performancePad = function(_channel, control, value, status, group) 
 
     // SAVEDLOOP MODE
     if (deckState.padModes.savedloop) {
-        const loopNum = padIndex(padNumber, deckState.padModes.savedloop);
+        const loopNum = padIndex(padNumber, deckState.padModes.savedloop, "savedloop");
         // Only set if not a hotcue
         if (engine.getValue(group, `hotcue_${loopNum}_type`) !== 1) {
             if (value === 127) {
@@ -850,7 +858,7 @@ MixstreamPro.performancePad = function(_channel, control, value, status, group) 
 
     // SAMPLER MODE
     if (value === 127 && deckState.padModes.sampler) {
-        const sample = padNumber + (4 * (deckState.padModes.sampler - 1));
+        const sample = padIndex(padNumber, deckState.padModes.sampler, "sampler");
         engine.setValue(`[Sampler${sample}]`, "cue_gotoandplay", 1);
     }
 };
