@@ -91,7 +91,6 @@
                     <script-binding/>
                 </options>
             </control>
-            <!-- What are these? -->
             <control>
                 <group>[Auxiliary1]</group>
                 <key>pregain</key>
@@ -186,22 +185,22 @@
             </control>
             <control>
                 <group>[Channel1]</group>
-                <key>LoadSelectedTrack</key>
-                <description>MIDI Learned from 2 messages.</description>
+                <key>MixstreamPro.loadTrack</key>
+                <description>Deck 1: Load track</description>
                 <status>0x9F</status>
                 <midino>0x01</midino>
                 <options>
-                    <normal/>
+                    <script-binding/>
                 </options>
             </control>
             <control>
                 <group>[Channel2]</group>
-                <key>LoadSelectedTrack</key>
-                <description>MIDI Learned from 2 messages.</description>
+                <key>MixstreamPro.loadTrack</key>
+                <description>Deck 2: Load track</description>
                 <status>0x9F</status>
                 <midino>0x02</midino>
                 <options>
-                    <normal/>
+                    <script-binding/>
                 </options>
             </control>
             <control>

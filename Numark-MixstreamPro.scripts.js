@@ -437,6 +437,18 @@ MixstreamPro.vuCallback = function(value, group, control) {
     }
 };
 
+MixstreamPro.loadTrack = function(_channel, _control, value, _status, group) {
+    if (value === 0) { return; }
+
+    const deckNum = script.deckFromGroup(group);
+    const deckState = MixstreamPro.deck[deckNum];
+    if (deckState.shift) {
+        engine.setValue(group, "eject", 1);
+    } else {
+        engine.setValue(group, "LoadSelectedTrack", 1);
+    }
+}
+
 // Generic track loaded callback - works for both decks
 MixstreamPro.trackLoadedCallback = function(_value, group, _control) {
     const deckNum = script.deckFromGroup(group);
