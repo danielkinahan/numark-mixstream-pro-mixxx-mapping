@@ -172,7 +172,10 @@ MixstreamPro.init = function (id, debugging) {
         for (deck in MixstreamPro.deck) {
             group = "[Channel" + deck + "]";
             jogWheel = MixstreamPro.deck[deck].jogWheel
-            if (engine.getValue(group, "scratch2_enable") && jogWheel.speed === jogWheel.previousSpeed) {
+            if (engine.getValue(group, "scratch2_enable") &&
+                jogWheel.speed === jogWheel.previousSpeed &&
+                !engine.isBrakeActive(deck) &&
+                !engine.isSoftStartActive(deck)) {
                 engine.setValue(group, "scratch2", 0);
                 engine.setValue(group, "scratch2_enable", false);
             }
@@ -343,16 +346,15 @@ MixstreamPro.play = function (channel, control, value, status, group) {
     let deckState = MixstreamPro.deck[deckNum];
     let playStatus = engine.getValue(group, "play_indicator")
 
-    if (value === 0x00) {
+    if (value === 127) {
         if (deckState.shift) {
             if (MixstreamPro.settings.stutterPlayOnShiftPlay) {
                 engine.setValue(group, "cue_gotoandplay", 1);
             } else {
-                // A setting is added here for ptraxs preferred behaviour
                 playStatus === 1 ? engine.brake(deckNum, true, 0.7) : engine.softStart(deckNum, true, 3);
             }
         } else {
-            playStatus === 1 ? engine.setValue(group, "play", 0) : engine.setValue(group, "play", 1);
+            script.toggleControl(group, "play");
         }
     }
 }
