@@ -545,6 +545,14 @@ const JogCombined = function(group) {
     const interval = value - deckState.jogWheel.previousValue;
     const dt = timestamp - deckState.jogWheel.previousTimestamp;
 
+    // If wheel spins past end of track reset it
+    const pos = engine.getValue(group, "playposition");
+    if (pos <= 0) {
+        engine.setValue(group, "playposition", 1);
+    } else if (pos >= 1) {
+        engine.setValue(group, "playposition", 0);
+    }
+
     deckState.jogWheel.previousValue = value;
     deckState.jogWheel.previousTimestamp = timestamp;
 
