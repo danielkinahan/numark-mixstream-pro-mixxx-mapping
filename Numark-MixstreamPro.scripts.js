@@ -555,6 +555,17 @@ MixstreamPro.play = function(_channel, _control, value, _status, group) {
     }
 };
 
+MixstreamPro.cue = function(_channel, _control, value, _status, group) {
+    const deckNum = script.deckFromGroup(group);
+    const deckState = MixstreamPro.deck[deckNum];
+
+    if (deckState.shift) {
+        engine.setValue(group, "cue_gotoandstop", 1);
+    } else {
+        engine.setValue(group, "cue_default", (value === 127));
+    }
+}
+
 // Generic JogWheel MSB handler for both decks
 const JogCombined = function(group) {
     const deckNum = script.deckFromGroup(group);

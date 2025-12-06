@@ -13,8 +13,7 @@ In all modes while stopped the outer wheel scrubs the track silently and the pla
 
 ## Roadmap Issues
 - [ ] Autoloop should continue from the same origin beat when changed ?
-- [ ] Remove loopin on trackload
-- [ ] Add ptrexs preference for hotcues/savedloops
+- [ ] Outer wheel doesnt scrub the track silently while not playing like stated above
 
 ## Other Issues
 - Stems mode (Shift + Hotcue) will be implemented when it's added to Mixxx.
