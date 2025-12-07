@@ -7,6 +7,9 @@ const SETTINGS = Object.freeze({
     defaultPadMode: "",
     // Produces a lot of MIDI traffic that makes it difficult to debug
     enableVUMeter: true,
+    // Enable backspinning (or forward spinning) when you lift your finger off the platter
+    // Not compatible with Mixxx versions below 2.6
+    backspin: false,
     // Amount of values to smooth jog speed over. Raising this makes it lag behind
     //  your movement and lowering it makes it sound warbly
     jogWheelBufferSize: 4,
@@ -359,20 +362,22 @@ MixstreamPro.init = function(_id, _debugging) {
     initLEDs();
 
     // Unsticks the scratch every so often
-    engine.beginTimer(SETTINGS.jogWheelStuckTimeout, function() {
-        for (const deck in MixstreamPro.deck) {
-            const group = `[Channel${deck}]`;
-            const jogWheel = MixstreamPro.deck[deck].jogWheel;
-            if (engine.getValue(group, "scratch2_enable") &&
-                jogWheel.speed === jogWheel.previousSpeed &&
-                !engine.isBrakeActive(deck) &&
-                !engine.isSoftStartActive(deck)) {
-                engine.setValue(group, "scratch2", 0);
-                engine.setValue(group, "scratch2_enable", false);
+    if (SETTINGS.backspin) {
+        engine.beginTimer(SETTINGS.jogWheelStuckTimeout, function() {
+            for (const deck in MixstreamPro.deck) {
+                const group = `[Channel${deck}]`;
+                const jogWheel = MixstreamPro.deck[deck].jogWheel;
+                if (engine.getValue(group, "scratch2_enable") &&
+                    jogWheel.speed === jogWheel.previousSpeed &&
+                    !engine.isBrakeActive(deck) &&
+                    !engine.isSoftStartActive(deck)) {
+                    engine.setValue(group, "scratch2", 0);
+                    engine.setValue(group, "scratch2_enable", false);
+                }
+                jogWheel.previousSpeed = jogWheel.speed;
             }
-            jogWheel.previousSpeed = jogWheel.speed;
-        }
-    }, false);
+        }, false);
+    }
 };
 
 // Turn OFF ALL LEDs at SHUTDOWN
@@ -605,10 +610,7 @@ const JogCombined = function(group) {
         speed;
 
     // Keep scratching until the wheel has stopped spinning
-    if (!deckState.jogWheel.touched && Math.abs(speed) <= SETTINGS.jogWheelThreshold) {
-        // let alpha = 1.0 / 8;
-        // let beta = alpha / 32;
-        // engine.scratchEnable(deckNum, 894, 33 + 1 / 3, alpha, beta);
+    if (SETTINGS.backspin && !deckState.jogWheel.touched && Math.abs(speed) <= SETTINGS.jogWheelThreshold) {
         engine.setValue(group, "scratch2", 0);
         engine.setValue(group, "scratch2_enable", false);
 
@@ -664,9 +666,6 @@ MixstreamPro.WheelTouch = function(_channel, _control, value, _status, group) {
     if (value === 0x7F) {
         // If scratchMode not in jog mode
         if (deckState.jogWheel.scratchMode) {
-            // let alpha = 1.0 / 8;
-            // let beta = alpha / 32;
-            // engine.scratchEnable(deckNum, 894, 33 + 1 / 3, alpha, beta);
             engine.setValue(group, "scratch2_enable", true);
             deckState.jogWheel.touched = true;
             if (engine.getValue(group, "play")) {
@@ -676,10 +675,16 @@ MixstreamPro.WheelTouch = function(_channel, _control, value, _status, group) {
         }
     } else {
         deckState.jogWheel.touched = false;
-        if (Math.abs(deckState.jogWheel.speed) <= SETTINGS.jogWheelThreshold) {
+        if (SETTINGS.backspin) {
+            if (Math.abs(deckState.jogWheel.speed) <= SETTINGS.jogWheelThreshold) {
+                engine.setValue(group, "scratch2", 0);
+                engine.setValue(group, "scratch2_enable", false);
+            }
+        } else {
             engine.setValue(group, "scratch2", 0);
             engine.setValue(group, "scratch2_enable", false);
         }
+
         if (deckState.jogWheel.paused) {
             engine.setValue(group, "play", 1);
             deckState.jogWheel.paused = false;
