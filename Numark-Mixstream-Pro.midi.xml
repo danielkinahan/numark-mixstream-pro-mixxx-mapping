@@ -8,7 +8,7 @@
     <controller id="MixstreamPro">
         <scriptfiles>
             <file filename="midi-components-0.0.js"/>
-            <file functionprefix="MixstreamPro" filename="Numark-MixstreamPro.scripts.js"/>
+            <file functionprefix="MixstreamPro" filename="Numark-Mixstream-Pro.scripts.js"/>
         </scriptfiles>
         <controls>
             <control>
